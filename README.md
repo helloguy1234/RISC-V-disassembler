@@ -3,11 +3,12 @@
 Du an nay duoc to chuc lai theo pipeline hoc thuat nhung van thuc te de trien khai thanh do an:
 
 1. Input / CLI
-2. ELF Loader / File Parser
-3. Section + Symbol Resolver
-4. RV32I Decoder
-5. Instruction IR
-6. Text Emitter / JSON Output / CFG Builder
+2. UI Layer (JavaFX)
+3. ELF Loader / File Parser
+4. Section + Symbol Resolver
+5. RV32I Decoder
+6. Instruction IR
+7. Text Emitter / JSON Output / CFG Builder
 
 ## Cau truc thu muc
 
@@ -16,7 +17,11 @@ src/main/java/org/hello/riscvdisassembler
 |-- Main.java
 |-- cli
 |   `-- DisassemblerCli.java
+|-- ui
+|   |-- UiLauncher.java
+|   `-- JavaFxDisassemblerApp.java
 |-- pipeline
+|   |-- DisassemblyRequest.java
 |   `-- DisassemblyPipeline.java
 |-- elf
 |   |-- ElfLoader.java
@@ -44,10 +49,10 @@ src/main/java/org/hello/riscvdisassembler
 ## Luong xu ly
 
 ```text
-Input/CLI -> ELF Loader -> Resolver -> RV32I Decoder -> Instruction IR
-                                                     |-> Text Emitter
-                                                     |-> JSON Output
-                                                     `-> CFG Builder
+CLI/UI -> DisassemblyRequest -> ELF Loader -> Resolver -> RV32I Decoder -> Instruction IR
+                                                                          |-> Text Emitter
+                                                                          |-> JSON Output
+                                                                          `-> CFG Builder
 ```
 
 ## Cach build
@@ -69,6 +74,7 @@ java -jar target/riscv-disassembler.jar --input path/to/file.elf --format asm
 java -jar target/riscv-disassembler.jar --input path/to/file.elf --format json
 java -jar target/riscv-disassembler.jar --input path/to/file.elf --format cfg
 java -jar target/riscv-disassembler.jar --input path/to/file.elf --header-only
+java -jar target/riscv-disassembler.jar --ui
 ```
 
 Vi du voi file mau trong repo:
@@ -82,7 +88,9 @@ Tuy chon ho tro:
 - `--input <file>`: tep ELF can disassemble
 - `--format <asm|json|cfg>`: dinh dang dau ra
 - `--header-only`: chi parse ELF header de debug file loi / file chua duoc ho tro
+- `--disassemble-all`: coi tat ca section la executable section
 - `--output <file>`: ghi ket qua ra tep
+- `--ui`: mo giao dien JavaFX
 - `--debug`: in full stack trace khi co loi
 
 ## Ghi chu hoc thuat
