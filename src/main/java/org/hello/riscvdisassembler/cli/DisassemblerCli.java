@@ -1,9 +1,10 @@
 package org.hello.riscvdisassembler.cli;
 
+import org.hello.riscvdisassembler.pipeline.DisassemblyRequest;
 import org.hello.riscvdisassembler.pipeline.DisassemblyPipeline;
+import org.hello.riscvdisassembler.ui.UiLauncher;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,20 +41,21 @@ public final class DisassemblerCli {
         }
 
         try {
-            String output;
-            if (options.headerOnly()) {
-                output = new DisassemblyPipeline().executeHeader(options.input());
-            } else {
-                output = new DisassemblyPipeline().execute(options.input(), options.format());
+            DisassemblyRequest request = options.toRequest();
+            if (request.uiMode()) {
+                new UiLauncher().launch(request);
+                return 0;
             }
-            if (options.output() == null) {
+
+            String output = new DisassemblyPipeline().execute(request);
+            if (request.output() == null) {
                 System.out.println(output);
             } else {
-                Files.write(options.output(), output.getBytes(StandardCharsets.UTF_8));
+                Files.write(request.output(), output.getBytes(StandardCharsets.UTF_8));
             }
             return 0;
         } catch (IOException | RuntimeException ex) {
-            System.err.println("Disassembly failed: " + formatError(options.input(), ex));
+            System.err.println("Disassembly failed: " + formatError(options.toRequest(), ex));
             if (options.debug()) {
                 ex.printStackTrace(System.err);
             }
@@ -66,14 +68,17 @@ public final class DisassemblerCli {
      */
     private void printUsage() {
         System.out.println("Usage:");
-        System.out.println("  java -jar target/riscv-disassembler.jar --input <file> --format <asm|json|cfg> [--output <file>] [--debug]");
+        System.out.println("  java -jar target/riscv-disassembler.jar --input <file> --format <asm|json|cfg> [--output <file>] [--disassemble-all] [--debug]");
         System.out.println("  java -jar target/riscv-disassembler.jar --input <file> --header-only [--output <file>] [--debug]");
+        System.out.println("  java -jar target/riscv-disassembler.jar --ui [--input <file>] [--format <asm|json|cfg>] [--disassemble-all] [--debug]");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --input   Path to ELF file");
         System.out.println("  --format  Output format: asm, json, cfg");
         System.out.println("  --header-only  Parse and print only the ELF header (lenient mode)");
+        System.out.println("  --disassemble-all  Treat every section as executable");
         System.out.println("  --output  Optional destination file");
+        System.out.println("  --ui      Launch the JavaFX user interface");
         System.out.println("  --debug   Print full stack trace when an error occurs");
         System.out.println("  --help    Show this help");
     }
@@ -81,13 +86,13 @@ public final class DisassemblerCli {
     /**
      * Formats a user-facing error message from a caught exception.
      *
-     * @param input input file path that the user requested
+     * @param request request that the user asked to run
      * @param ex caught exception
      * @return human-readable error message
      */
-    private String formatError(Path input, Exception ex) {
-        if (ex instanceof NoSuchFileException) {
-            return "Input file not found: " + input;
+    private String formatError(DisassemblyRequest request, Exception ex) {
+        if (request.input() != null && !java.nio.file.Files.exists(request.input())) {
+            return "Input file not found: " + request.input();
         }
         if (ex.getMessage() == null || ex.getMessage().trim().isEmpty()) {
             return ex.getClass().getSimpleName();
@@ -105,6 +110,8 @@ public final class DisassemblerCli {
         private final boolean help;
         private final boolean debug;
         private final boolean headerOnly;
+        private final boolean disassembleAll;
+        private final boolean ui;
 
         /**
          * Creates a new validated set of CLI options.
@@ -115,41 +122,19 @@ public final class DisassemblerCli {
          * @param help whether the user requested help text
          * @param debug whether full stack traces should be printed on failure
          * @param headerOnly whether only the ELF header should be parsed and printed
+         * @param disassembleAll whether every section should be treated as executable
+         * @param ui whether the JavaFX UI should be launched
          */
-        private CliOptions(Path input, String format, Path output, boolean help, boolean debug, boolean headerOnly) {
+        private CliOptions(java.nio.file.Path input, String format, java.nio.file.Path output, boolean help,
+                           boolean debug, boolean headerOnly, boolean disassembleAll, boolean ui) {
             this.input = input;
             this.format = format;
             this.output = output;
             this.help = help;
             this.debug = debug;
             this.headerOnly = headerOnly;
-        }
-
-        /**
-         * Returns the input ELF path.
-         *
-         * @return input file path, or {@code null} when help mode is active
-         */
-        private Path input() {
-            return input;
-        }
-
-        /**
-         * Returns the requested output format.
-         *
-         * @return normalized format name
-         */
-        private String format() {
-            return format;
-        }
-
-        /**
-         * Returns the optional output destination.
-         *
-         * @return output file path, or {@code null} when writing to standard output
-         */
-        private Path output() {
-            return output;
+            this.disassembleAll = disassembleAll;
+            this.ui = ui;
         }
 
         /**
@@ -171,12 +156,12 @@ public final class DisassemblerCli {
         }
 
         /**
-         * Indicates whether the CLI should parse only the ELF header.
+         * Converts CLI options into a request understood by the shared pipeline and UI layer.
          *
-         * @return {@code true} when header-only mode is enabled
+         * @return immutable disassembly request
          */
-        private boolean headerOnly() {
-            return headerOnly;
+        private DisassemblyRequest toRequest() {
+            return new DisassemblyRequest(input, format, output, debug, headerOnly, disassembleAll, ui);
         }
 
         /**
@@ -194,6 +179,8 @@ public final class DisassemblerCli {
             boolean help = false;
             boolean debug = false;
             boolean headerOnly = false;
+            boolean disassembleAll = false;
+            boolean ui = false;
 
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
@@ -210,6 +197,12 @@ public final class DisassemblerCli {
                     case "--header-only":
                         headerOnly = true;
                         break;
+                    case "--disassemble-all":
+                        disassembleAll = true;
+                        break;
+                    case "--ui":
+                        ui = true;
+                        break;
                     case "--debug":
                         debug = true;
                         break;
@@ -222,14 +215,14 @@ public final class DisassemblerCli {
                 }
             }
 
-            if (!help && input == null) {
+            if (!help && !ui && input == null) {
                 throw new IllegalArgumentException("Missing required argument --input");
             }
             if (!help && !headerOnly && !format.equals("asm") && !format.equals("json") && !format.equals("cfg")) {
                 throw new IllegalArgumentException("Unsupported format: " + format);
             }
 
-            return new CliOptions(input, format, output, help, debug, headerOnly);
+            return new CliOptions(input, format, output, help, debug, headerOnly, disassembleAll, ui);
         }
 
         /**

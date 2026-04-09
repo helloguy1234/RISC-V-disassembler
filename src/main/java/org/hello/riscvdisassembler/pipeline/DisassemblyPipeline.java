@@ -17,10 +17,15 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Coordinates the full disassembly workflow from input ELF file to rendered output.
+ * Coordinates the full disassembly workflow from input ELF file to rendered
+ * output.
  *
- * <p>The pipeline loads the ELF file, resolves executable sections and symbols, decodes
- * machine words into instruction IR, and emits the final result in the requested format.</p>
+ * <p>
+ * The pipeline loads the ELF file, resolves executable sections and symbols,
+ * decodes
+ * machine words into instruction IR, and emits the final result in the
+ * requested format.
+ * </p>
  */
 public final class DisassemblyPipeline {
     private final ElfLoader elfLoader = new ElfLoader();
@@ -32,19 +37,62 @@ public final class DisassemblyPipeline {
     private final CfgBuilder cfgBuilder = new CfgBuilder();
 
     /**
+     * Executes the full disassembly workflow described by a request object.
+     *
+     * @param request request describing input, output format, and execution flags
+     * @return formatted disassembly output ready to print or write to a file
+     * @throws IOException              if the input file cannot be read
+     * @throws IllegalArgumentException if the requested format is not supported
+     */
+    public String execute(DisassemblyRequest request) throws IOException {
+        if (request.headerOnly()) {
+            return executeHeader(request.input());
+        }
+
+        ElfFile elfFile = elfLoader.load(request.input());
+        ResolvedProgram resolvedProgram = resolver.resolve(elfFile, request.disassembleAll());
+        List<InstructionIr> instructions = decoder.decode(resolvedProgram);
+
+        return emit(request.format(), resolvedProgram, instructions);
+    }
+
+    /**
      * Executes the full disassembly pipeline for one input file.
      *
-     * @param input path to the ELF file that should be processed
-     * @param format output format selector: {@code asm}, {@code json}, or {@code cfg}
+     * @param input  path to the ELF file that should be processed
+     * @param format output format selector: {@code asm}, {@code json}, or
+     *               {@code cfg}
      * @return formatted disassembly output ready to print or write to a file
-     * @throws IOException if the input file cannot be read
+     * @throws IOException              if the input file cannot be read
      * @throws IllegalArgumentException if {@code format} is not supported
      */
     public String execute(Path input, String format) throws IOException {
-        ElfFile elfFile = elfLoader.load(input);
-        ResolvedProgram resolvedProgram = resolver.resolve(elfFile);
-        List<InstructionIr> instructions = decoder.decode(resolvedProgram);
+        return execute(new DisassemblyRequest(input, format, null, false, false, false, false));
+    }
 
+    /**
+     * Parses and renders only the ELF header, without requiring the full file to
+     * pass
+     * complete disassembly validation.
+     *
+     * @param input path to the file whose header should be parsed
+     * @return formatted header summary
+     * @throws IOException if the input file cannot be read
+     */
+    public String executeHeader(Path input) throws IOException {
+        ElfHeader header = elfLoader.loadHeader(input);
+        return headerEmitter.emit(header);
+    }
+
+    /**
+     * Routes decoded instructions to the requested emitter.
+     *
+     * @param format          output format selector
+     * @param resolvedProgram resolved program metadata
+     * @param instructions    decoded instruction list
+     * @return rendered output
+     */
+    private String emit(String format, ResolvedProgram resolvedProgram, List<InstructionIr> instructions) {
         switch (format) {
             case "asm":
                 return textEmitter.emit(resolvedProgram, instructions);
@@ -55,18 +103,5 @@ public final class DisassemblyPipeline {
             default:
                 throw new IllegalArgumentException("Unsupported format: " + format);
         }
-    }
-
-    /**
-     * Parses and renders only the ELF header, without requiring the full file to pass
-     * complete disassembly validation.
-     *
-     * @param input path to the file whose header should be parsed
-     * @return formatted header summary
-     * @throws IOException if the input file cannot be read
-     */
-    public String executeHeader(Path input) throws IOException {
-        ElfHeader header = elfLoader.loadHeader(input);
-        return headerEmitter.emit(header);
     }
 }

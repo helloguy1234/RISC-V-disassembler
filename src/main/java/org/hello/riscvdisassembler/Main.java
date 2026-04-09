@@ -5,8 +5,11 @@ import org.hello.riscvdisassembler.cli.DisassemblerCli;
 /**
  * Application entry point for the RISC-V disassembler.
  *
- * <p>This class delegates command-line parsing and execution to {@link DisassemblerCli}
- * and only converts the returned status into a process exit code when needed.</p>
+ * <p>
+ * This class delegates command-line parsing and execution to
+ * {@link DisassemblerCli}
+ * and only converts the returned status into a process exit code when needed.
+ * </p>
  */
 public final class Main {
     /**
