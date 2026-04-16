@@ -1,0 +1,42 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD /tmp/cc8YW8td.o
+                0x80000000                        . = 0x80000000
+
+.text           0x80000000       0x10
+ *(.init)
+ *(.text.entry)
+ *(.text .text.*)
+ .text          0x80000000       0x10 /tmp/cc8YW8td.o
+                0x80000000                _start
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data           0x80000010       0x2c
+ *(.data .data.*)
+ .data          0x80000010       0x2c /tmp/cc8YW8td.o
+
+.bss            0x8000003c        0x0
+ *(.bss .bss.*)
+ .bss           0x8000003c        0x0 /tmp/cc8YW8td.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(./samples/code_and_data_seperate elf32-littleriscv)
+
+.riscv.attributes
+                0x00000000       0x1a
+ .riscv.attributes
+                0x00000000       0x1a /tmp/cc8YW8td.o

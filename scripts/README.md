@@ -9,6 +9,7 @@ scripts/
 |-- windows/
 |   `-- open-kali-wsl-here.bat
 `-- wsl/
+    |-- rv32i-baremetal-build.sh
     |-- rv32i-baremetal-gcc
     |-- rv32i-baremetal-objdump
     |-- rv32i-baremetal-readelf
@@ -18,6 +19,7 @@ scripts/
 Recommended entry points:
 
 - `scripts/windows/open-kali-wsl-here.bat`: open Kali WSL in the current project directory.
+- `scripts/wsl/rv32i-baremetal-build.sh`: bare-metal RV32I build wrapper that emits a `.map` file when linking an ELF.
 - `scripts/wsl/rv32i-baremetal-gcc`: GCC-like WSL wrapper for bare-metal RV32I builds.
 - `scripts/wsl/rv32i-baremetal-objdump`: WSL wrapper for `objdump`.
 - `scripts/wsl/rv32i-baremetal-readelf`: WSL wrapper for `readelf`.
@@ -30,6 +32,8 @@ Quick examples:
   `scripts\windows\open-kali-wsl-here.bat`
 - Build ELF inside WSL:
   `scripts/wsl/rv32i-baremetal-gcc samples/test.s -o samples/build/test.elf`
+- Build ELF and emit map inside WSL:
+  `scripts/wsl/rv32i-baremetal-build.sh samples/test.s -o samples/build/test.elf`
 - Disassemble inside WSL:
   `scripts/wsl/rv32i-baremetal-objdump -D samples/build/test.elf`
 - Inspect ELF sections inside WSL:
@@ -41,3 +45,4 @@ Notes:
 
 - Toolchain wrappers are intentionally kept in WSL only.
 - Use Windows only to open the WSL terminal, then run build/debug commands inside WSL.
+- `rv32i-baremetal-build.sh` supports compile-only output such as `.o`, but `.map` is only generated in link mode because object-file compilation does not invoke the linker.
