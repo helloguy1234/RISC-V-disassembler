@@ -1,4 +1,4 @@
-package org.hello.riscvdisassembler.pipeline;
+package org.hello.riscvdisassembler.app.pipeline;
 
 import org.hello.riscvdisassembler.TestPaths;
 import org.junit.jupiter.api.Test;
@@ -27,3 +27,4 @@ class DisassemblyPipelineTest {
         assertTrue(allSections.contains(".symtab:"));
     }
 }
+

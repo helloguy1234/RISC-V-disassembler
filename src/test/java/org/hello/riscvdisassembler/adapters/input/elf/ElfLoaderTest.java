@@ -1,8 +1,8 @@
-package org.hello.riscvdisassembler.elf;
+package org.hello.riscvdisassembler.adapters.input.elf;
 
 import org.hello.riscvdisassembler.TestPaths;
-import org.hello.riscvdisassembler.elf.model.ElfFile;
-import org.hello.riscvdisassembler.elf.model.ElfHeader;
+import org.hello.riscvdisassembler.adapters.input.elf.model.ElfFile;
+import org.hello.riscvdisassembler.adapters.input.elf.model.ElfHeader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -57,3 +57,4 @@ class ElfLoaderTest {
         assertEquals(0, header.sectionHeaderCount());
     }
 }
+

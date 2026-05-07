@@ -1,8 +1,8 @@
-package org.hello.riscvdisassembler.resolver;
+package org.hello.riscvdisassembler.core.resolve;
 
 import org.hello.riscvdisassembler.TestPaths;
-import org.hello.riscvdisassembler.elf.ElfLoader;
-import org.hello.riscvdisassembler.elf.model.ElfFile;
+import org.hello.riscvdisassembler.adapters.input.elf.ElfBinaryImageAdapter;
+import org.hello.riscvdisassembler.adapters.input.elf.ElfLoader;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -14,13 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SectionSymbolResolverTest {
     private final ElfLoader loader = new ElfLoader();
+    private final ElfBinaryImageAdapter binaryImageAdapter = new ElfBinaryImageAdapter();
     private final SectionSymbolResolver resolver = new SectionSymbolResolver();
 
     @Test
     void resolveKeepsOnlyExecutableSectionsByDefault() throws IOException {
-        ElfFile elfFile = loader.load(TestPaths.sampleElf());
-
-        ResolvedProgram program = resolver.resolve(elfFile);
+        ResolvedProgram program = resolver.resolve(binaryImageAdapter.adapt(loader.load(TestPaths.sampleElf())));
 
         assertEquals(1, program.executableSections().size());
         assertEquals(".text", program.executableSections().getFirst().name());
@@ -30,9 +29,7 @@ class SectionSymbolResolverTest {
 
     @Test
     void resolveCanTreatAllSectionsAsExecutable() throws IOException {
-        ElfFile elfFile = loader.load(TestPaths.sampleElf());
-
-        ResolvedProgram program = resolver.resolve(elfFile, true);
+        ResolvedProgram program = resolver.resolve(binaryImageAdapter.adapt(loader.load(TestPaths.sampleElf())), true);
 
         assertTrue(program.executableSections().size() > 1);
         assertTrue(program.executableSections().stream().anyMatch(section -> ".text".equals(section.name())));
@@ -40,3 +37,4 @@ class SectionSymbolResolverTest {
         assertNull(program.findSymbol(".symtab", 0L));
     }
 }
+

@@ -1,4 +1,4 @@
-package org.hello.riscvdisassembler.cli;
+package org.hello.riscvdisassembler.entry.cli;
 
 import org.hello.riscvdisassembler.TestPaths;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,9 @@ class DisassemblerCliTest {
         int exitCode = runWithCapturedStreams(new String[]{"--help"}, stdout, stderr);
 
         assertEquals(0, exitCode);
-        assertTrue(stdout.toString(StandardCharsets.UTF_8).contains("Usage:"));
+        String helpText = stdout.toString(StandardCharsets.UTF_8);
+        assertTrue(helpText.contains("Usage:"));
+        assertTrue(helpText.contains("-i, --input"));
     }
 
     @Test
@@ -36,6 +38,28 @@ class DisassemblerCliTest {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
         int exitCode = runWithCapturedStreams(new String[]{"--input", TestPaths.sampleElf().toString(), "--header-only"}, stdout, stderr);
+
+        assertEquals(0, exitCode);
+        assertTrue(stdout.toString(StandardCharsets.UTF_8).contains("ELF header (lenient parse)"));
+    }
+
+    @Test
+    void runSupportsShortOptions() {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        int exitCode = runWithCapturedStreams(new String[]{"-i", TestPaths.sampleElf().toString(), "-f", "asm"}, stdout, stderr);
+
+        assertEquals(0, exitCode);
+        String output = stdout.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains(".text:"));
+        assertTrue(output.contains("addi ra, zero, 5"));
+    }
+
+    @Test
+    void runSupportsShortHeaderOnlyOption() {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        int exitCode = runWithCapturedStreams(new String[]{"-i", TestPaths.sampleElf().toString(), "-H"}, stdout, stderr);
 
         assertEquals(0, exitCode);
         assertTrue(stdout.toString(StandardCharsets.UTF_8).contains("ELF header (lenient parse)"));
@@ -66,3 +90,4 @@ class DisassemblerCliTest {
         }
     }
 }
+

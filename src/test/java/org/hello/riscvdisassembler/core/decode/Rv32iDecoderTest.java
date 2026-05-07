@@ -1,10 +1,10 @@
-package org.hello.riscvdisassembler.decoder;
+package org.hello.riscvdisassembler.core.decode;
 
 import org.hello.riscvdisassembler.TestPaths;
-import org.hello.riscvdisassembler.elf.ElfLoader;
-import org.hello.riscvdisassembler.ir.InstructionIr;
-import org.hello.riscvdisassembler.resolver.ResolvedProgram;
-import org.hello.riscvdisassembler.resolver.SectionSymbolResolver;
+import org.hello.riscvdisassembler.adapters.input.elf.ElfLoader;
+import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
+import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
+import org.hello.riscvdisassembler.core.resolve.SectionSymbolResolver;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -14,13 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class Rv32iDecoderTest {
-    private final ElfLoader loader = new ElfLoader();
     private final SectionSymbolResolver resolver = new SectionSymbolResolver();
     private final Rv32iDecoder decoder = new Rv32iDecoder();
 
     @Test
     void decodeSampleProgramIntoExpectedInstructions() throws IOException {
-        ResolvedProgram program = resolver.resolve(loader.load(TestPaths.sampleElf()));
+        ResolvedProgram program = resolver.resolve(TestPaths.sampleBinaryImage());
 
         List<InstructionIr> instructions = decoder.decode(program);
 
@@ -39,3 +38,4 @@ class Rv32iDecoderTest {
         assertEquals(12L, instructions.get(3).branchTarget());
     }
 }
+
