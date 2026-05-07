@@ -2,203 +2,321 @@
 
 ## Overview
 
-This repository contains a Java-based RISC-V disassembler focused on the RV32I instruction set and ELF input files.
-The project is structured like an academic pipeline, but the codebase is organized in a practical way so it can be built, tested, and demonstrated as a working application.
+This repository is a Java 21 RISC-V disassembler centered on:
 
-The project currently supports:
-
-- Command-line disassembly of ELF files
-- A JavaFX desktop UI
-- ELF header parsing and full ELF loading
-- Section and symbol resolution
 - RV32I instruction decoding
-- Multiple output modes: text assembly, JSON, and CFG-like output
-- Sample binaries, assembly inputs, and helper scripts for WSL-based bare-metal tooling
+- ELF32 little-endian input
+- static code discovery
+- text / JSON / CFG outputs
 
-## Primary Goal
+The codebase is no longer organized as a flat set of utility packages. It has been refactored into a layered structure that reflects the actual pipeline:
 
-The current implementation is centered on disassembling RV32I ELF binaries and presenting the decoded program in forms that are useful for learning, analysis, and demonstration:
+- `entry`
+- `app`
+- `adapters`
+- `core`
+- `features`
 
-- human-readable assembly
-- machine-readable JSON
-- a simple control-flow graph view
+This is important context, because the current architecture is no longer "ELF parser + decoder + emitters". It is now a staged pipeline with explicit contracts between phases.
 
-This makes the project fit both coursework/demo use and future extension work.
+## What The Program Does
 
-## Tech Stack
+The application reads an ELF file, converts it into an internal binary model, resolves executable regions and symbols, decides which addresses should actually be treated as code, decodes RV32I instructions, and renders the result in one of several formats.
 
-- Java 21
-- Maven
-- JavaFX 21.0.2
-- JUnit 5 for tests
+The supported user-facing outputs are:
 
-Build output is packaged into a shaded runnable JAR:
+- assembly-like text
+- JSON
+- CFG summary
+- ELF header-only output
 
-- `target/riscv-disassembler.jar`
+It is best understood as a compact static disassembler for coursework, demonstrations, and further extension, not as a full reverse-engineering suite.
 
-## High-Level Architecture
+## Architecture
 
-The main execution flow is:
+### 1. Entry Layer
 
-`CLI/UI -> DisassemblyRequest -> ELF Loader -> Section/Symbol Resolver -> RV32I Decoder -> IR -> Emitters/CFG`
+The entry layer contains user-facing adapters:
 
-Key modules:
+- `entry.cli.DisassemblerCli`
+- `entry.ui.UiLauncher`
+- `entry.ui.JavaFxDisassemblerApp`
 
-- `Main`: process entry point
-- `cli`: command-line parsing and execution
-- `ui`: JavaFX application and launcher
-- `pipeline`: shared orchestration layer used by both CLI and UI
-- `elf`: ELF parsing and data models
-- `resolver`: executable section and symbol resolution
-- `decoder`: RV32I instruction decoding
-- `ir`: intermediate representation for decoded instructions
-- `emit`: output renderers
-- `analysis`: CFG-related analysis classes
+CLI and UI are not separate pipeline steps. They are two front ends over the same application pipeline.
 
-## Current Runtime Behavior
+### 2. Application Layer
 
-### CLI
+The application layer is:
 
-The CLI entry point delegates to `DisassemblerCli`, which supports:
+- `app.pipeline.DisassemblyRequest`
+- `app.pipeline.DisassemblyPipeline`
 
-- `--input <file>`
-- `--format <asm|json|cfg>`
-- `--output <file>`
-- `--header-only`
-- `--disassemble-all`
-- `--ui`
-- `--debug`
-- `--help`
+`DisassemblyPipeline` is the orchestration boundary. It chooses:
 
-Behavior notes:
+- header-only flow vs full disassembly flow
+- ELF loading
+- adaptation into canonical binary model
+- resolve
+- discovery mode
+- final output backend
 
-- `--header-only` does a lenient header parse instead of full disassembly
+### 3. Adapter Layer
+
+The adapter layer currently contains ELF-specific input support:
+
+- `adapters.input.elf.ElfLoader`
+- `adapters.input.elf.ElfBinaryImageAdapter`
+- `adapters.input.elf.model.*`
+
+These classes are format-specific. They should be read as input adapters, not as the core domain model of the project.
+
+### 4. Core Layer
+
+The core processing pipeline is split into four subdomains.
+
+#### `core.binary.model`
+
+Canonical input model used by the core:
+
+- `BinaryImage`
+- `BinarySection`
+- `BinarySymbol`
+
+This is the normalized representation that separates the rest of the pipeline from ELF-specific DTOs.
+
+#### `core.resolve`
+
+Resolution phase:
+
+- `SectionSymbolResolver`
+- `ResolvedProgram`
+
+This phase determines:
+
+- which sections are executable
+- how symbols are indexed
+- what address ranges are valid for later discovery and decode
+
+#### `core.discover`
+
+Control-flow-aware discovery phase:
+
+- `CodeDiscoveryEngine`
+- `DiscoveryMode`
+- `ControlFlowEdge`
+- `DiscoveredProgram`
+- `DiscoveredRegion`
+- `RegionClassifier`
+- `RegionKind`
+
+This phase is now the central improvement over the original naive linear-sweep design.
+
+It decides:
+
+- which addresses should be decoded
+- which direct targets should be followed
+- what the retained instruction set is
+- which ranges are code vs unreachable data gaps
+
+#### `core.decode`
+
+Instruction decoding phase:
+
+- `InstructionDecoder`
+- `Rv32iDecoder`
+- `model.InstructionIr`
+
+The decoder does not decide what is code. It only answers:
+
+- what instruction exists at this address
+
+That separation is deliberate and is one of the main architectural improvements in the repo.
+
+### 5. Feature Layer
+
+The downstream feature modules all consume `DiscoveredProgram`:
+
+- `features.text.TextEmitter`
+- `features.json.JsonEmitter`
+- `features.cfg.CfgBuilder`
+- `features.header.HeaderEmitter`
+
+This means text, JSON, and CFG no longer operate on ad-hoc combinations of raw lists and resolver state. They all read the same canonical discovered result.
+
+## Runtime Flow
+
+### Full Disassembly
+
+```text
+DisassemblerCli / JavaFxDisassemblerApp
+  -> DisassemblyRequest
+  -> DisassemblyPipeline
+  -> ElfLoader
+  -> ElfBinaryImageAdapter
+  -> BinaryImage
+  -> SectionSymbolResolver
+  -> ResolvedProgram
+  -> CodeDiscoveryEngine
+  -> DiscoveredProgram
+  -> TextEmitter / JsonEmitter / CfgBuilder
+```
+
+### Header-Only
+
+```text
+DisassemblerCli / JavaFxDisassemblerApp
+  -> DisassemblyRequest
+  -> DisassemblyPipeline
+  -> ElfLoader.loadHeader()
+  -> HeaderEmitter
+```
+
+## Discovery Behavior
+
+The project now supports two internal discovery modes.
+
+### Recursive
+
+This is the default mode for normal disassembly.
+
+It:
+
+- seeds from the entry point
+- seeds from trusted executable symbols
+- follows direct branch/jump/call targets
+- keeps fall-through edges when valid
+- avoids seeding weak local labels such as `$...` and `.` labels
+- classifies unreachable gaps as discovered regions
+
+This is the main mechanism used to reduce code/data confusion compared with the earlier linear-only design.
+
+### Linear
+
+This mode still exists for inspection-oriented behavior.
+
+It:
+
+- decodes all aligned words in selected executable sections
+- still creates instruction-level edges
+- is used when `--disassemble-all` is enabled
+
+This preserves the previous "show me everything in the section" behavior while allowing the normal path to be more conservative.
+
+## Current CLI Behavior
+
+The CLI currently supports:
+
+- `--input`, `-i`
+- `--format`, `-f`
+- `--output`, `-o`
+- `--header-only`, `-H`
+- `--disassemble-all`, `-a`
+- `--ui`, `-u`
+- `--debug`, `-d`
+- `--help`, `-h`
+
+Supported formats:
+
+- `asm`
+- `json`
+- `cfg`
+
+Important behavior:
+
+- `--header-only` bypasses full disassembly and only parses the ELF header
 - `--ui` launches the JavaFX app
-- if `--output` is omitted, output is printed to stdout
-- failures return non-zero exit codes and can include stack traces with `--debug`
+- `--disassemble-all` currently forces linear discovery
+- output is written to stdout unless `--output` is provided
+- failures return non-zero exit codes
 
-### UI
+## UI Behavior
 
-The JavaFX UI exposes the same pipeline features as the CLI:
+The JavaFX app uses the same `DisassemblyPipeline` as the CLI.
 
-- choose input ELF
-- choose output format
-- optional output file
+It currently supports:
+
+- input selection
+- output file selection
+- format selection
 - header-only mode
 - disassemble-all mode
 - debug stack trace mode
 
-The UI writes to file when requested and also shows the result in a text area.
+So the UI is not a separate implementation of the disassembler. It is another front end over the same use case layer.
 
-## Pipeline Details
+## Output Semantics
 
-`DisassemblyPipeline` is the central coordinator. It currently does the following:
+### Text
 
-1. Load the ELF file or just the ELF header
-2. Resolve sections and symbols into a `ResolvedProgram`
-3. Decode instructions into `InstructionIr`
-4. Emit the requested output format
+`TextEmitter` renders:
 
-Supported output backends:
+- entry point metadata
+- discovery mode
+- section labels
+- code instructions
+- data regions as `.word` or `.byte` output where appropriate
 
-- `TextEmitter`
-- `JsonEmitter`
-- `HeaderEmitter`
-- `CfgBuilder`
+### JSON
 
-## Repository Layout
+`JsonEmitter` serializes:
 
-Important paths:
+- discovery mode
+- entry point
+- executable sections
+- symbols
+- regions
+- edges
+- instructions
 
-- `src/main/java/org/hello/riscvdisassembler/`: application source
-- `src/test/java/org/hello/riscvdisassembler/`: unit tests
-- `samples/`: sample ELF/object/assembly files and generated outputs
-- `scripts/`: helper scripts for WSL/Windows workflows
-- `docs/`: project documents and reference material
+### CFG
 
-## Scripts and Tooling Context
+`CfgBuilder` is no longer the place that rediscovers control flow.
 
-The repository includes helper scripts for working with bare-metal RV32I binaries under WSL.
+It now:
 
-Important files:
+- reads `DiscoveredProgram`
+- uses discovered instruction-level edges
+- groups instructions into basic blocks
+- emits a CFG-oriented summary
 
-- `scripts/linker/rv32i-baremetal.ld`: default linker script
-- `scripts/wsl/rv32i-baremetal-gcc.sh`: wrapper around a RISC-V GCC toolchain
-- `scripts/wsl/rv32i-baremetal-build.sh`: wrapper that builds bare-metal RV32I and emits a `.map` file when linking
-- `scripts/wsl/rv32i-baremetal-objdump.sh`
-- `scripts/wsl/rv32i-baremetal-readelf.sh`
-- `scripts/wsl/rv32i-baremetal-gdb.sh`
-- `scripts/windows/open-kali-wsl-here.bat`
+This makes CFG a downstream feature rather than a second control-flow inference engine.
 
-The build wrapper currently supports:
+## Testing Status
 
-- compile-only output such as `.o`
-- ELF linking with default `-march=rv32i` and `-mabi=ilp32`
-- automatic use of the repo linker script when none is provided
-- automatic `.map` output placed next to the requested output ELF
+The test suite covers the major subsystems:
 
-Example:
-
-```bash
-scripts/wsl/rv32i-baremetal-build.sh start.s main.c -o build/app.elf
-```
-
-Expected outputs:
-
-- `build/app.elf`
-- `build/app.map`
-
-## Samples Context
-
-The `samples/` folder contains:
-
-- sample ELF files for disassembly
-- example assembly inputs
-- generated output examples
-- map/object artifacts used while testing the bare-metal flow
-
-One recent finding from the samples:
-
-- `samples/code_and_data_seperate.s` uses `.section data` instead of `.section .data`
-- the linker script only places `*(.data .data.*)` into the output `.data` section
-- because of that mismatch, the input section named `data` is treated separately and the output `.data` section remains empty
-- this is why `.data` and `.bss` can appear at the same address in `samples/code_and_data_seperate.map`: both sections are size `0`
-
-In other words, the overlapping addresses there are not a linker bug; they come from empty output sections plus a section-name mismatch in the sample source.
-
-## Testing Context
-
-The test suite currently covers major subsystems, including:
-
-- CLI behavior
-- pipeline behavior
-- ELF loading
-- RV32I decoding
-- emitters
-- CFG building
-- section/symbol resolution
-
-Representative test classes:
-
-- `DisassemblerCliTest`
-- `DisassemblyPipelineTest`
 - `ElfLoaderTest`
+- `SectionSymbolResolverTest`
 - `Rv32iDecoderTest`
+- `CodeDiscoveryEngineTest`
 - `EmittersTest`
 - `CfgBuilderTest`
-- `SectionSymbolResolverTest`
+- `DisassemblyPipelineTest`
+- `DisassemblerCliTest`
 
-This suggests the codebase already has baseline regression coverage around the core pipeline.
+Current passing test count: `27`.
 
-## Build and Run
+## Build And Run
 
 Build:
 
 ```bash
-mvn clean package
+mvn package
 ```
 
-Run from CLI:
+Run tests:
+
+```bash
+mvn test
+```
+
+Runnable jar:
+
+```text
+target/riscv-disassembler.jar
+```
+
+Example commands:
 
 ```bash
 java -jar target/riscv-disassembler.jar --input samples/sample.elf --format asm
@@ -208,30 +326,29 @@ java -jar target/riscv-disassembler.jar --input samples/sample.elf --header-only
 java -jar target/riscv-disassembler.jar --ui
 ```
 
-## Current Scope and Limits
+## Current Limits
 
-Based on the code and existing docs, the project is currently oriented toward:
+The current implementation still has clear boundaries.
 
-- ELF32 little-endian input suitable for RV32I workflows
-- decoding the RV32I base instruction set
-- educational/static analysis use rather than full linker/loader emulation
+It does not yet provide:
 
-Known future-direction items already reflected in the repo documentation:
+- explicit user-facing discovery-mode selection
+- indirect target recovery for `jalr`
+- jump table recognition
+- richer data classification such as `ALIGNMENT` or `UNKNOWN`
+- relocation-aware reasoning
+- pseudo-instruction lifting
+- RV32M / RV32C support
+- DOT/Graphviz CFG export
 
-- relocation support
-- pseudo-instruction handling
-- RV32M and RV32C support
-- richer data analysis
-- DOT/Graphviz export for CFG
+## Practical Interpretation
 
-## Practical Summary
+The correct way to understand the current codebase is:
 
-At its current state, this repo is a working RV32I ELF disassembler with:
+- ELF is an input adapter concern
+- `BinaryImage` is the canonical input contract
+- `ResolvedProgram` is the canonical resolve-stage contract
+- `DiscoveredProgram` is the canonical downstream disassembly contract
+- text / JSON / CFG are sibling feature modules over the same discovered result
 
-- a shared disassembly pipeline
-- both CLI and JavaFX front ends
-- tests across core modules
-- WSL helper scripts for generating and inspecting bare-metal RISC-V binaries
-- sample artifacts for validating decoding and linker behavior
-
-It is already usable for demonstrations and coursework, while still being small enough to extend in targeted ways.
+That is the most accurate mental model for the project in its current form.

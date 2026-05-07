@@ -39,3 +39,4 @@ build/
 .DS_Store
 
 gemini.settings.json
+GEMINI.md
