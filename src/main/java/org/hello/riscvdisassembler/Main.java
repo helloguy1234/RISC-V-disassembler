@@ -1,6 +1,6 @@
 package org.hello.riscvdisassembler;
 
-import org.hello.riscvdisassembler.cli.DisassemblerCli;
+import org.hello.riscvdisassembler.entry.cli.DisassemblerCli;
 
 /**
  * Application entry point for the RISC-V disassembler.
@@ -30,3 +30,4 @@ public final class Main {
         }
     }
 }
+
