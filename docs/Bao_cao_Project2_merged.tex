@@ -1,0 +1,573 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{}
+
+\begin{document}
+
+TRƯỜNG ĐẠI HỌC BÁCH KHOA HÀ NỘI
+
+VIỆN CÔNG NGHỆ THÔNG TIN VÀ TRUYỀN THÔNG
+
+──────── * ───────
+
+\textbf{BÁO CÁO}
+
+MÔN: Project 2
+
+\textbf{Nghiên cứu và xây dựng trình dịch ngược mã máy thành lệnh hợp
+ngữ của kiến trúc RISC-V}
+
+\begin{quote}
+Mã lớp học : 761986
+
+Giáo viên hướng dẫn : Ngô Lam Trung
+
+Sinh viên thực hiện:
+\end{quote}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.2950}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.7050}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Họ và Tên}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+: Đinh Đức Mạnh
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{MSSV} & : 20235371 \\
+\textbf{Email} & : Manh.DD235371@sis.hust.edu.vn \\
+\end{longtable}
+
+\emph{\textbf{Hà Nội, tháng 3 năm 2026}}
+
+\textbf{MỤC LỤC}
+
+\textbf{LỜI NÓI ĐẦU} 3
+
+\textbf{CHƯƠNG 1. MỞ ĐẦU} 4
+
+\textbf{CHƯƠNG 2. CƠ SỞ LÝ THUYẾT VÀ CÔNG NGHỆ SỬ DỤNG} 6
+
+\textbf{CHƯƠNG 3. PHÂN TÍCH THIẾT KẾ HỆ THỐNG} 11
+
+\textbf{CHƯƠNG 4. HƯỚNG DẪN TRIỂN KHAI VÀ CÀI ĐẶT} 12
+
+\textbf{CHƯƠNG 5. KẾT LUẬN} 13
+
+\textbf{TÀI LIỆU THAM KHẢO} 14
+
+\textbf{LỜI NÓI ĐẦU}
+
+Trong bối cảnh các hệ thống phần mềm ngày càng phức tạp và phụ thuộc sâu
+vào kiến trúc phần cứng, việc nghiên cứu chương trình ở mức mã máy trở
+thành nhu cầu quan trọng đối với kiểm thử, gỡ lỗi, phân tích bảo mật và
+đánh giá hành vi thực thi. Nhiều hành vi của chương trình chỉ thực sự
+được bộc lộ đầy đủ khi quan sát trực tiếp ở tầng instruction.
+
+Đối với các tệp thực thi không có mã nguồn, các mẫu firmware, object
+file hoặc các trường hợp phục vụ phân tích mã độc, nhà nghiên cứu không
+thể đọc trực tiếp dãy byte nhị phân để hiểu ngữ nghĩa chương trình. Khi
+đó, disassembler đóng vai trò như công cụ trung gian, giúp chuyển dữ
+liệu nhị phân thành biểu diễn hợp ngữ gần với cách con người và công cụ
+phân tích có thể tiếp cận.
+
+Xuất phát từ nhu cầu trên, báo cáo này tập trung nghiên cứu và xây dựng
+một trình dịch ngược cho kiến trúc RISC-V, cụ thể là biến thể RV32I. Mục
+tiêu của đề tài không chỉ là hiển thị mã hợp ngữ, mà còn là thiết kế một
+lõi xử lý có cấu trúc dữ liệu rõ ràng, có khả năng làm nền cho các bước
+phát triển tiếp theo như phân tích luồng điều khiển, phục hồi nhãn, và
+tích hợp với các công cụ dịch ngược bậc cao hơn.
+
+Trong phạm vi hiện tại, báo cáo hoàn thiện phần mở đầu, cơ sở lý thuyết,
+phân tích công cụ tham khảo và định hướng kiến trúc phần mềm. Các chương
+sau về phân tích thiết kế chi tiết, triển khai và kết luận được giữ dưới
+dạng placeholder để tiếp tục phát triển ở các giai đoạn sau.
+
+\textbf{CHƯƠNG 1. MỞ ĐẦU}
+
+\textbf{1.1. Lý do chọn đề tài}
+
+Máy tính hiện đại được tổ chức thành nhiều tầng trừu tượng: phần cứng,
+hệ điều hành, trình biên dịch, thư viện, chương trình và giao diện người
+dùng. Tuy nhiên, giữa ngôn ngữ nguồn và tầng thực thi luôn tồn tại một
+khoảng cách nhận thức đáng kể. Nhiều lỗi hệ thống, lỗ hổng bảo mật hoặc
+hành vi bất thường chỉ bộc lộ rõ khi quan sát chương trình ở mức mã máy.
+
+Từ góc độ an ninh và phân tích nhị phân, disassembler là công cụ nền
+tảng trong ba bối cảnh tiêu biểu: phân tích mã độc, nghiên cứu lỗ hổng
+bảo mật và pháp y kỹ thuật số. Trong các tình huống này, đối tượng phân
+tích thường chỉ tồn tại dưới dạng file thực thi hoặc object file; vì vậy
+cần một công cụ có khả năng đọc, giải mã và tái hiện dòng lệnh hợp ngữ
+để phục vụ việc lập luận kỹ thuật.
+
+\begin{quote}
+• Phân tích mã độc: hỗ trợ bóc tách các mẫu chương trình độc hại không
+có mã nguồn, từ đó xác định hành vi, luồng điều khiển và dấu hiệu né
+tránh phân tích.
+
+• Nghiên cứu lỗ hổng bảo mật: cho phép kiểm tra các đoạn mã nhị phân của
+thư viện, firmware hoặc ứng dụng đóng để phát hiện logic xử lý nguy
+hiểm.
+
+• Pháp y kỹ thuật số: hỗ trợ trích xuất bằng chứng từ phần mềm thu giữ
+được trong quá trình điều tra, nhất là khi tác giả phần mềm không cung
+cấp thông tin triển khai.
+\end{quote}
+
+Mặc dù GNU objdump và nhiều công cụ mature khác đã hỗ trợ disassembly
+cho RISC-V, chúng thường được thiết kế theo hướng đa kiến trúc, đa định
+dạng và ưu tiên đầu ra văn bản cho người đọc. Đồ án này lựa chọn cách
+tiếp cận tối giản hơn: xây dựng một lõi chuyên biệt cho RV32I, tập trung
+vào tính đúng đắn của parser, resolver, decoder và mô hình dữ liệu đầu
+ra để phục vụ học tập cũng như nghiên cứu sâu hơn.
+
+\textbf{1.2. Mục tiêu đề tài}
+
+\textbf{1.2.1. Mục tiêu tổng quát}
+
+Nghiên cứu nguyên lý hoạt động của disassembler và xây dựng một công cụ
+có khả năng đọc tệp nhị phân RISC-V, xác định vùng chứa mã lệnh, giải mã
+các instruction RV32I và xuất ra biểu diễn hợp ngữ tương ứng với độ
+trung thực cao đối với chương trình gốc.
+
+\textbf{1.2.2. Mục tiêu cụ thể}
+
+\begin{quote}
+• Tìm hiểu cơ sở lý thuyết của disassembler và vai trò của disassembly
+trong phân tích chương trình ở mức thấp.
+
+• Nghiên cứu kiến trúc tập lệnh RISC-V, đặc biệt là RV32I, bao gồm định
+dạng lệnh, thanh ghi, opcode, funct3, funct7 và cơ chế mã hóa immediate.
+
+• Nghiên cứu cấu trúc file ELF và object file liên quan tới quá trình
+đọc section, symbol và relocation cần thiết cho disassembly.
+
+• Xây dựng parser để đọc ELF đầu vào, xác định section mã và ánh xạ địa
+chỉ logic của instruction.
+
+• Xây dựng bộ giải mã RV32I để biến dãy byte thành instruction có cấu
+trúc và có thể phát sinh đầu ra ở nhiều định dạng.
+
+• Thiết kế structured output làm nền cho các bước mở rộng như dựng CFG,
+tích hợp decompiler hoặc kiểm thử đối chiếu với công cụ chuẩn.
+
+• Đối chiếu kết quả với công cụ tham khảo như GNU objdump để đánh giá độ
+đúng của hệ thống.
+\end{quote}
+
+\textbf{1.3. Phạm vi đề tài}
+
+Để đảm bảo tính khả thi trong khuôn khổ học phần, phạm vi triển khai
+hiện tại của đề tài được giới hạn như sau:
+
+\begin{quote}
+• Đầu vào là các file nhị phân RISC-V phổ biến trong bài toán dịch ngược
+cơ bản, ưu tiên ELF executable và relocatable object file (.o).
+
+• Kiến trúc hỗ trợ chính là RISC-V RV32I; các extension như M, C, F, D
+hoặc V chưa phải trọng tâm của giai đoạn hiện tại.
+
+• Giao diện sử dụng là CLI để giảm độ phức tạp triển khai; giao diện đồ
+họa và các tiện ích nâng cao được xem là hướng mở rộng.
+
+• Phần lõi tập trung vào parser, resolver và decoder; các bài toán nâng
+cao như function recovery, decompiler IR hoặc symbolic execution chưa
+được triển khai đầy đủ trong báo cáo này.
+
+• Đầu ra chuẩn được định hướng ở dạng JSON/structured output, đồng thời
+có thể bổ sung lớp text emitter để đối chiếu với objdump khi cần.
+\end{quote}
+
+\textbf{CHƯƠNG 2. CƠ SỞ LÝ THUYẾT VÀ CÔNG NGHỆ SỬ DỤNG}
+
+\textbf{2.1. Cơ sở lý thuyết}
+
+\textbf{2.1.1. Tổng quan về kiến trúc RISC-V và biến thể RV32I}
+
+RISC-V là kiến trúc tập lệnh mở theo triết lý RISC, được thiết kế để đơn
+giản, mô-đun và thuận lợi cho cả nghiên cứu lẫn triển khai công nghiệp.
+Trong hệ sinh thái RISC-V, RV32I là tập lệnh số nguyên cơ sở 32-bit, đủ
+tối thiểu để làm đích biên dịch cho trình biên dịch và môi trường hệ
+điều hành hiện đại {[}1{]}.
+
+Ở mức lập trình, RV32I sử dụng 32 thanh ghi tổng quát x0 đến x31 cùng
+thanh ghi đếm chương trình pc. Các instruction có độ dài cố định 32 bit
+và được mã hóa theo các định dạng chính như R, I, S, B, U và J. Việc các
+trường rd, rs1 và rs2 được đặt ở vị trí tương đối ổn định giữa các định
+dạng giúp đơn giản hóa phần cứng giải mã, đồng thời hỗ trợ xây dựng
+decoder phần mềm rõ ràng hơn {[}1{]}.
+
+Đối với disassembler, các đặc tính này có hai ý nghĩa quan trọng. Thứ
+nhất, việc mã hóa cố định 32 bit cho phép quét tuyến tính dễ dàng trong
+phạm vi RV32I cơ sở. Thứ hai, các quy tắc sign-extension và bố trí bit
+của immediate buộc decoder phải tách bit một cách chính xác thay vì chỉ
+in theo khuôn mẫu chuỗi ký tự.
+
+\textbf{2.1.2. Cấu trúc file ELF và ý nghĩa đối với disassembler}
+
+ELF (Executable and Linking Format) là định dạng đối tượng và thực thi
+phổ biến trong các hệ thống UNIX-like. Theo đặc tả gABI, phần ELF header
+đóng vai trò ``bản đồ'' mô tả cách tổ chức file; còn section giữ phần
+lớn thông tin ở góc nhìn liên kết như mã lệnh, dữ liệu, bảng ký hiệu và
+relocation {[}7{]}.
+
+Trong bài toán disassembly, parser cần đọc chính xác section header
+table để xác định vùng mã lệnh, nhất là .text, đồng thời tra cứu symbol
+table để phục hồi tên hàm hoặc nhãn khi dữ liệu còn tồn tại. Nếu làm
+việc với relocatable object file, thông tin relocation cũng quan trọng
+vì nó cho biết những vị trí nào trong mã cần được diễn giải theo ngữ
+cảnh liên kết chứ không chỉ là immediate thuần túy {[}8{]}.
+
+Do đó, việc hiểu ELF không chỉ phục vụ bước ``đọc file'', mà còn quyết
+định mức độ giàu ngữ nghĩa của output. Một disassembler chỉ quét byte
+trong .text sẽ cho ra chuỗi assembly cơ bản; ngược lại, một disassembler
+biết khai thác symbol và relocation có thể tạo ra đầu ra gần với ngữ
+nghĩa chương trình hơn.
+
+\textbf{2.1.3. Phân tích công cụ tham khảo và phương pháp tiếp cận: GNU
+objdump}
+
+GNU objdump là một trong những công cụ disassembly phổ biến nhất và là
+case study phù hợp để rút ra phương pháp thiết kế. Về bản chất, objdump
+thể hiện rõ tư tưởng phân lớp: lớp frontend nhận tham số dòng lệnh và
+điều phối, BFD trừu tượng hóa định dạng tệp, còn libopcodes đảm nhiệm
+logic giải mã theo từng kiến trúc {[}2{]}, {[}3{]}.
+
+BFD sử dụng các cấu trúc canonical nội bộ để biểu diễn object file, nhờ
+đó lớp giải mã không phải làm việc trực tiếp với từng định dạng nhị phân
+cụ thể. Đây là ý tưởng có giá trị lớn đối với đề tài: nếu parser ELF và
+decoder bị dính chặt vào nhau, hệ thống sẽ khó mở rộng và khó kiểm thử.
+Ngược lại, một lớp chuẩn hóa nội bộ sẽ giúp cô lập phần phụ thuộc định
+dạng khỏi lõi giải mã {[}3{]}.
+
+Tuy nhiên, objdump cũng bộc lộ hai hạn chế khi nhìn từ mục tiêu của đồ
+án này. Thứ nhất, đầu ra chính của nó là chuỗi văn bản nhằm phục vụ quan
+sát của con người. Thứ hai, hệ sinh thái libbfd/libopcodes rất mạnh
+nhưng khá đồ sộ nếu chỉ cần một công cụ chuyên biệt cho RV32I. Vì vậy,
+báo cáo này chọn cách học theo tư tưởng kiến trúc của objdump nhưng giản
+lược phạm vi hiện thực {[}2{]}--{[}4{]}.
+
+\textbf{2.1.4. Định dạng file ELF}
+
+ELF (Executable and Linkable Format) là định dạng tệp chuẩn dùng để lưu
+trữ chương trình thực thi, object file và thư viện. Trong bài toán
+disassembler, việc hiểu đúng cấu trúc ELF là điều kiện tiên quyết để
+chương trình có thể xác định chính xác vùng mã lệnh cần dịch. Một file
+ELF thường gồm các thành phần quan trọng như \textbf{ELF Header},
+\textbf{Program Header Table}, \textbf{Section Header Table} và các
+\textbf{section} dữ liệu. Trong đó, ELF Header chứa các thông tin nhận
+dạng file như magic number, kiến trúc mục tiêu, entry point và vị trí
+các bảng mô tả; Section Header Table dùng để mô tả các section như
+.text, .data, .bss, .symtab, .strtab; còn section .text thường là nơi
+chứa mã máy cần disassemble. Vì vậy, muốn disassembler hoạt động đúng
+thì trước hết phải đọc đúng các trường trong ELF, xác định đúng tên
+section, offset, kích thước, địa chỉ và phạm vi dữ liệu của từng
+section, đặc biệt là section chứa mã lệnh.
+
+\textbf{2.1.5. Cơ sở kiểm thử trình disassembler}
+
+Cơ sở kiểm thử của trình disassembler được xây dựng dựa trên việc đối
+chiếu với chuẩn kỹ thuật và công cụ tham chiếu. Trước hết, chương trình
+phải tuân thủ đúng \textbf{đặc tả ELF} khi đọc file và đúng \textbf{đặc
+tả ISA} khi giải mã instruction. Tiếp theo, kết quả của chương trình cần
+được so sánh với các công cụ chuẩn như readelf và objdump để kiểm tra
+tính chính xác của việc đọc section, giải mã lệnh, xác định địa chỉ và
+hiển thị toán hạng. Ngoài ra, cần xây dựng bộ test gồm các file ELF đơn
+giản, các chương trình assembly nhỏ, các trường hợp biên như immediate
+âm/dương, branch offset, jump target, cũng như các file lỗi hoặc file
+ELF không hợp lệ để kiểm tra khả năng xử lý ngoại lệ. Từ đó có thể đánh
+giá rằng chương trình đúng khi nó đọc đúng cấu trúc ELF, disassemble
+đúng vùng mã, giải mã đúng instruction và cho kết quả nhất quán với công
+cụ chuẩn trên các bộ dữ liệu kiểm thử.
+
+\textbf{2.2. Định hướng kiến trúc phần mềm đề xuất}
+
+\textbf{2.2.1. Nguyên tắc phân lớp và luồng xử lý}
+
+Qua quá trình trao đổi và rà soát yêu cầu, kiến trúc phần mềm của hệ
+thống được thống nhất theo hướng phân lớp rõ ràng. Từ góc nhìn triển
+khai, hệ thống có thể được hiểu theo năm lớp trách nhiệm chính: lớp giao
+diện CLI; lớp điều phối luồng xử lý; lớp truy cập dữ liệu nhị phân; lớp
+lõi giải mã; và lớp mô hình dữ liệu cùng hợp đồng output.
+
+Cụ thể hơn, presentation layer chịu trách nhiệm nhận input, option và
+phản hồi cho người dùng. Application/orchestration layer điều phối
+pipeline mở file, parse, resolve, decode và emit. Infrastructure layer
+xử lý ELF loader/parser, byte access, endianness và các bảng header.
+Core/domain layer chứa resolver, decoder RV32I và các logic quy tắc
+nghiệp vụ. Cuối cùng, model/output layer biểu diễn BinaryImage,
+SectionRecord, SymbolRecord, InstructionIR và các đối tượng dùng để
+serialization.
+
+Luồng xử lý tương ứng là: nhận file đầu vào → chuẩn hóa thông tin nhị
+phân → xác định section mã → giải mã instruction → sinh structured
+output → tùy chọn render thành văn bản assembly. Cách chia này bảo đảm
+mỗi khối có một nhiệm vụ rõ ràng và giảm phụ thuộc chéo giữa parser và
+decoder.
+
+\textbf{2.2.2. Chuẩn hóa dữ liệu đầu vào và mô hình canonical nội bộ}
+
+Một điểm đã được thống nhất là hệ thống nên học theo tư tưởng của BFD
+nhưng không sao chép toàn bộ BFD. Nói cách khác, đề tài nên xây dựng một
+mô hình canonical nội bộ kiểu ``mini-BFD'' thay vì cố hiện thực một
+framework tổng quát cho nhiều định dạng và nhiều kiến trúc.\footnote{Trong
+  báo cáo này, mô hình ``mini-BFD'' được hiểu là một lớp chuẩn hóa nội
+  bộ tối giản cho ELF/.o, chỉ giữ những trường thật sự cần cho pipeline
+  disassembly và không nhằm thay thế đầy đủ thư viện BFD của GNU
+  Binutils.}
+
+Trong mô hình này, ELF parser không trả trực tiếp các byte rời rạc cho
+decoder, mà chuyển chúng về các cấu trúc chuẩn hóa như BinaryImage,
+SectionRecord, SymbolRecord và RelocationRecord. Từ đó, decoder RV32I
+chỉ cần làm việc với code section bytes, base address và ánh xạ symbol
+cần thiết, không cần hiểu chi tiết của toàn bộ ELF header trong mọi bước
+xử lý.
+
+Cách tiếp cận này vừa giữ lại ưu điểm lớn nhất của BFD --- tách parser
+khỏi logic giải mã --- vừa tránh được độ cồng kềnh không cần thiết đối
+với một đồ án tập trung vào RV32I. Đây là điểm cân bằng hợp lý giữa giá
+trị học thuật và tính khả thi triển khai.
+
+\textbf{2.2.3. Instruction IR và structured output}
+
+Đầu ra của hệ thống không nên dừng ở chuỗi assembly thuần túy. Thay vào
+đó, mỗi instruction cần được lưu dưới dạng một biểu diễn trung gian có
+cấu trúc, gọi là Instruction IR, bao gồm các trường tối thiểu như địa
+chỉ, kích thước, bytes gốc, mnemonic, operands, thanh ghi đọc/ghi,
+branch target và symbol liên quan.\footnote{Instruction IR (Intermediate
+  Representation) là biểu diễn trung gian có cấu trúc của một lệnh máy
+  sau khi giải mã; nó khác với chuỗi assembly ở chỗ được tối ưu cho phần
+  mềm xử lý tiếp như CFG builder, data-flow analyzer hoặc decompiler.}
+
+Việc đưa thêm lớp Instruction IR giúp tách biệt ``nghĩa của lệnh'' với
+``cách hiển thị lệnh''. Từ cùng một nguồn dữ liệu, hệ thống có thể vừa
+sinh chuỗi .asm cho người đọc, vừa sinh JSON cho công cụ xử lý tiếp, vừa
+làm đầu vào cho các mô-đun phân tích luồng điều khiển hoặc phục hồi hàm.
+Định hướng này cũng nhất quán với mục tiêu phát triển một lõi
+disassembler có giá trị tái sử dụng chứ không chỉ là chương trình in văn
+bản {[}9{]}.
+
+Trong ngắn hạn, structured output được chọn là JSON vì JSON dễ sinh, dễ
+kiểm tra bằng test và dễ chuyển đổi sang các định dạng khác. Trong trung
+hạn, cùng một mô hình dữ liệu này có thể được serialize sang các format
+chặt hơn như MessagePack hoặc Protocol Buffers nếu yêu cầu hiệu năng
+hoặc tích hợp hệ thống tăng lên.
+
+\textbf{2.2.4. Đánh giá lựa chọn công nghệ triển khai}
+
+Đối với phạm vi Project 2, Java 21 là lựa chọn hợp lý vì tốc độ phát
+triển nhanh, mô hình đối tượng rõ ràng, thư viện chuẩn đủ mạnh để thao
+tác file nhị phân và hệ sinh thái test/build trưởng thành. Maven hỗ trợ
+quản lý dependency, chuẩn hóa lifecycle build và tăng tính lặp lại của
+quá trình triển khai {[}5{]}, {[}6{]}.
+
+So với C/C++, Java bất lợi ở chỗ khó tận dụng trực tiếp các thư viện
+dịch ngược native vốn đã phổ biến trong cộng đồng reverse engineering.
+Tuy nhiên, với mục tiêu hiện tại là nắm chắc parser, resolver, decoder
+và mô hình dữ liệu, Java vẫn là lựa chọn cân bằng hơn. Hơn nữa, Java 21
+đã cung cấp FFM API theo hướng gọi native library và thao tác native
+memory thuận tiện hơn JNI truyền thống, vì vậy kiến trúc hiện tại hoàn
+toàn có thể mở đường cho backend native ở giai đoạn sau {[}5{]}.
+
+Từ góc nhìn thiết kế, quyết định hợp lý nhất là: Java được dùng để triển
+khai lõi học thuật và structured output trong giai đoạn hiện tại; còn
+khả năng tích hợp Capstone hoặc các thư viện native khác chỉ nên được
+xem là hướng tối ưu hóa hoặc mở rộng về sau {[}10{]}.
+
+\textbf{2.3. Công nghệ sử dụng}
+
+Các công nghệ được lựa chọn ở giai đoạn hiện tại của hệ thống bao gồm:
+
+\begin{quote}
+• Java 21: ngôn ngữ lập trình chính để hiện thực parser, resolver,
+decoder và mô hình dữ liệu.
+
+• Apache Maven: công cụ quản lý dependency và chuẩn hóa quá trình
+build/test/package của dự án.
+
+• JUnit (dự kiến): bộ công cụ kiểm thử đơn vị để đối chiếu kết quả giải
+mã với các trường hợp đầu vào chuẩn.
+
+• GNU objdump: công cụ tham chiếu dùng cho việc kiểm thử đối chiếu kết
+quả disassembly ở mức văn bản.
+
+• JSON: định dạng output chuẩn ở giai đoạn đầu để phục vụ cả hiển thị
+lẫn xử lý tiếp bằng công cụ khác.
+\end{quote}
+
+\textbf{2.4. Tóm tắt các nội dung đã thống nhất}
+
+Bảng dưới đây tổng hợp ngắn gọn các quyết định kỹ thuật đã được thống
+nhất trong quá trình trao đổi, đồng thời đóng vai trò như đầu vào cho
+Chương 3 về phân tích thiết kế hệ thống.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3095}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3307}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3598}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Nội dung}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Thống nhất}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textbf{Ý nghĩa}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Mô hình đầu vào & Chuẩn hóa ELF/.o sang mô hình canonical nội bộ tối
+giản, không sao chép BFD đầy đủ. & Giảm phụ thuộc, tách parser khỏi
+decoder và vẫn giữ khả năng mở rộng hợp lý. \\
+Kiến trúc phần mềm & Phân tách giao diện, điều phối, truy cập nhị phân,
+lõi giải mã và mô hình dữ liệu. & Giúp kiểm thử từng phần và thuận lợi
+khi mở rộng sang CFG hoặc decompiler backend. \\
+Ngôn ngữ & Java 21 + Maven cho giai đoạn hiện tại; để ngỏ khả năng tích
+hợp native library về sau. & Cân bằng giữa tốc độ phát triển, độ an toàn
+bộ nhớ và tính tổ chức của mã nguồn. \\
+Đầu ra & JSON/structured output là đầu ra chuẩn; text emitter chỉ là lớp
+trình bày bổ sung. & Phù hợp cho cả người đọc lẫn phần mềm xử lý
+tiếp. \\
+Mốc đến cuối tháng 6 & Ưu tiên parser ELF, resolver cơ bản, decoder
+RV32I và JSON schema ổn định. & Đây là mốc khả thi, có thể demo rõ ràng
+và tạo nền cho các chương sau. \\
+\end{longtable}
+
+\textbf{CHƯƠNG 3. PHÂN TÍCH THIẾT KẾ HỆ THỐNG}
+
+Nội dung chương này sẽ được bổ sung ở giai đoạn tiếp theo. Trọng tâm dự
+kiến gồm phân tích thiết kế phần mềm, giải thích cấu trúc từng lớp, mô
+tả package, class chính và sơ đồ phụ thuộc giữa các thành phần.
+
+\textbf{CHƯƠNG 4. HƯỚNG DẪN TRIỂN KHAI VÀ CÀI ĐẶT}
+
+Nội dung chương này sẽ được bổ sung ở giai đoạn tiếp theo. Trọng tâm dự
+kiến gồm yêu cầu môi trường, quy trình build, cách chạy chương trình,
+cấu hình tham số đầu vào và các bước kiểm thử cài đặt cơ bản.
+
+\textbf{CHƯƠNG 5. KẾT LUẬN}
+
+Nội dung chương này sẽ được bổ sung ở giai đoạn tiếp theo. Phần hoàn
+thiện sẽ tổng kết kết quả đạt được, hạn chế hiện tại và định hướng mở
+rộng của hệ thống.
+
+\textbf{TÀI LIỆU THAM KHẢO}
+
+{[}1{]} RISC-V International, "The RISC-V Instruction Set Manual, Volume
+I: Unprivileged Architecture," docs.riscv.org. {[}Online{]}. Available:
+https://docs.riscv.org/reference/isa/\_attachments/riscv-unprivileged.pdf.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}2{]} Free Software Foundation, "GNU Binutils Manual," sourceware.org.
+{[}Online{]}. Available: https://sourceware.org/binutils/docs/binutils/.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}3{]} Free Software Foundation, "BFD front end," sourceware.org.
+{[}Online{]}. Available: https://sourceware.org/binutils/docs/bfd.pdf.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}4{]} D. Andriesse, Practical Binary Analysis: Build Your Own Linux
+Tools for Binary Instrumentation, Analysis, and Disassembly. San
+Francisco, CA, USA: No Starch Press, 2019.
+
+{[}5{]} Oracle, "Foreign Function and Memory API," Java SE 21
+Documentation. {[}Online{]}. Available:
+https://docs.oracle.com/en/java/javase/21/core/foreign-function-and-memory-api.html.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}6{]} Apache Software Foundation, "What is Maven?," maven.apache.org.
+{[}Online{]}. Available: https://maven.apache.org/what-is-maven.html.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}7{]} Linux Foundation, "Chapter 4: Object Files," System V ABI.
+{[}Online{]}. Available:
+https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.intro.html.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}8{]} Linux Foundation, "Relocation" and "Symbol Table," System V ABI.
+{[}Online{]}. Available:
+https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.reloc.html and
+https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.symtab.html.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}9{]} National Security Agency, "P-Code Reference Manual," ghidra.re.
+{[}Online{]}. Available:
+https://ghidra.re/ghidra\_docs/languages/html/pcoderef.html.
+{[}Accessed: Mar. 29, 2026{]}.
+
+{[}10{]} Capstone Engine, "Documentation," capstone-engine.org.
+{[}Online{]}. Available:
+https://www.capstone-engine.org/documentation.html. {[}Accessed: Mar.
+29, 2026{]}.
+
+{[}11{]} N. Jones, "How to Create Jump Tables via Function Pointer
+Arrays in C and C++," \emph{Netrino}, May 1999. {[}Online{]}. Available:
+. {[}Accessed: May. 07, 2026{]}.
+
+\end{document}
