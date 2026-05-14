@@ -1,7 +1,6 @@
 package org.hello.riscvdisassembler.core.decode;
 
 import org.hello.riscvdisassembler.TestPaths;
-import org.hello.riscvdisassembler.adapters.input.elf.ElfLoader;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
 import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
 import org.hello.riscvdisassembler.core.resolve.SectionSymbolResolver;
@@ -38,4 +37,3 @@ class Rv32iDecoderTest {
         assertEquals(12L, instructions.get(3).branchTarget());
     }
 }
-

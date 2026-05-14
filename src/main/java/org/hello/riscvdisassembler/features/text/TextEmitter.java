@@ -7,8 +7,6 @@ import org.hello.riscvdisassembler.core.discover.RegionKind;
 import org.hello.riscvdisassembler.core.binary.model.BinarySymbol;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
 
-import java.util.List;
-
 /**
  * Renders decoded instructions as human-readable assembly text.
  */
@@ -16,13 +14,15 @@ public final class TextEmitter {
     /**
      * Converts a discovered program into text assembly output.
      *
-     * @param program discovered program used for entry point, symbol lookup, and instructions
+     * @param program discovered program used for entry point, symbol lookup, and
+     *                instructions
      * @return multi-line textual disassembly
      */
     public String emit(DiscoveredProgram program) {
         StringBuilder sb = new StringBuilder();
         sb.append("; mode = ").append(program.mode().name().toLowerCase()).append(System.lineSeparator());
-        sb.append("; entry = ").append(hex(program.resolvedProgram().binaryImage().entryPoint())).append(System.lineSeparator());
+        sb.append("; entry = ").append(hex(program.resolvedProgram().binaryImage().entryPoint()))
+                .append(System.lineSeparator());
         sb.append(System.lineSeparator());
 
         String currentSection = null;
@@ -50,7 +50,8 @@ public final class TextEmitter {
                 continue;
             }
 
-            BinarySymbol symbol = program.resolvedProgram().findSymbol(instruction.sectionName(), instruction.address());
+            BinarySymbol symbol = program.resolvedProgram().findSymbol(instruction.sectionName(),
+                    instruction.address());
             if (symbol != null) {
                 sb.append(symbol.name()).append(":").append(System.lineSeparator());
             }
@@ -70,7 +71,8 @@ public final class TextEmitter {
     }
 
     private static void renderDataRegion(DiscoveredProgram program, DiscoveredRegion region, StringBuilder sb) {
-        sb.append("  ; ").append(region.kind().name().toLowerCase()).append(" region (").append(region.reason()).append(")")
+        sb.append("  ; ").append(region.kind().name().toLowerCase()).append(" region (").append(region.reason())
+                .append(")")
                 .append(System.lineSeparator());
 
         BinarySection section = program.resolvedProgram().findSectionContaining(region.start());
@@ -101,7 +103,8 @@ public final class TextEmitter {
             if (symbol != null) {
                 sb.append(symbol.name()).append(":").append(System.lineSeparator());
             }
-            sb.append("  ").append(hex(address)).append("  .byte ").append(renderBytes(program, section, address, region.end()))
+            sb.append("  ").append(hex(address)).append("  .byte ")
+                    .append(renderBytes(program, section, address, region.end()))
                     .append(System.lineSeparator());
         }
     }
@@ -140,4 +143,3 @@ public final class TextEmitter {
         return String.format("0x%08x", value);
     }
 }
-

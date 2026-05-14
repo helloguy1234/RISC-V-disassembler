@@ -84,5 +84,47 @@ class EmittersTest {
         assertTrue(output.contains(".word 0xdeadbeef"));
         assertFalse(output.contains("0x80000010  0xdeadbeef  jal"));
     }
-}
 
+    @Test
+    void textEmitterRendersLinearMode() throws IOException {
+        ResolvedProgram program = resolver.resolve(TestPaths.sampleBinaryImage());
+        DiscoveredProgram discovered = discoveryEngine.discover(program, DiscoveryMode.LINEAR);
+
+        String output = textEmitter.emit(discovered);
+
+        assertTrue(output.contains("; mode = linear"));
+        assertTrue(output.contains("; entry = 0x00000000"));
+    }
+
+    @Test
+    void textEmitterRendersMultipleSections() throws IOException {
+        ResolvedProgram program = resolver.resolve(TestPaths.sampleBinaryImage(), true);
+        DiscoveredProgram discovered = discoveryEngine.discover(program, DiscoveryMode.LINEAR);
+
+        String output = textEmitter.emit(discovered);
+
+        assertTrue(output.contains(".text:"));
+        assertTrue(output.contains(".symtab:"));
+    }
+
+    @Test
+    void textEmitterRendersInstructionWithOperands() throws IOException {
+        ResolvedProgram program = resolver.resolve(TestPaths.sampleBinaryImage());
+        DiscoveredProgram discovered = discoveryEngine.discover(program, DiscoveryMode.RECURSIVE);
+
+        String output = textEmitter.emit(discovered);
+
+        assertTrue(output.contains("addi ra, zero, 5"));
+        assertTrue(output.contains("add gp, ra, sp"));
+    }
+
+    @Test
+    void textEmitterRendersInstructionAddress() throws IOException {
+        ResolvedProgram program = resolver.resolve(TestPaths.sampleBinaryImage());
+        DiscoveredProgram discovered = discoveryEngine.discover(program, DiscoveryMode.RECURSIVE);
+
+        String output = textEmitter.emit(discovered);
+
+        assertTrue(output.contains("0x00000000"));
+    }
+}

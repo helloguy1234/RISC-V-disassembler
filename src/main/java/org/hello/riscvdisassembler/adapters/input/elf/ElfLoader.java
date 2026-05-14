@@ -208,17 +208,15 @@ public final class ElfLoader {
     private List<SymbolEntry> parseSymbols(byte[] bytes, List<SectionHeader> sections) {
         List<SymbolEntry> symbols = new ArrayList<>();
         for (SectionHeader section : sections) {
-            // Chỉ xử lý
-            // SHT_SYMTAB: symbol table đầy đủ
-            // SHT_DYNSYM: dynamic symbol table
-            if (section.type() != SHT_SYMTAB && section.type() != SHT_DYNSYM) {
-                continue;
-            }
+            // Chỉ xử lý SHT_SYMTAB (symbol table đầy đủ) hoặc SHT_DYNSYM (dynamic symbol
+            // table)
             // Kiểm tra symbol table có usable không:
             // - entrySize > 0: mỗi symbol entry phải có kích thước cố định
             // - link hợp lệ: sh_link phải trỏ tới section string table chứa tên symbol
-            // Nếu thiếu 1 trong các điều kiện này thì bỏ qua section đó.
-            if (section.entrySize() <= 0 || section.link() < 0 || section.link() >= sections.size()) {
+            if ((section.type() != SHT_SYMTAB && section.type() != SHT_DYNSYM)
+                    || section.entrySize() <= 0
+                    || section.link() < 0
+                    || section.link() >= sections.size()) {
                 continue;
             }
 
@@ -340,45 +338,28 @@ public final class ElfLoader {
 
     /**
      * Temporary section representation used before section names are resolved.
+     *
+     * @param index      section index within the section header table
+     * @param nameOffset offset into the section-name string table
+     * @param type       ELF section type
+     * @param flags      ELF section flags
+     * @param address    virtual address of the section
+     * @param offset     file offset of the section contents
+     * @param size       section size in bytes
+     * @param link       auxiliary link field whose meaning depends on {@code type}
+     * @param info       auxiliary info field whose meaning depends on {@code type}
+     * @param entrySize  size of each fixed-size entry for table-like sections
      */
-    private static final class RawSection {
-        private final int index;
-        private final int nameOffset;
-        private final long type;
-        private final long flags;
-        private final long address;
-        private final long offset;
-        private final long size;
-        private final int link;
-        private final int info;
-        private final long entrySize;
-
-        /**
-         * Creates a raw section record from directly parsed ELF fields.
-         *
-         * @param index      section index within the section header table
-         * @param nameOffset offset into the section-name string table
-         * @param type       ELF section type
-         * @param flags      ELF section flags
-         * @param address    virtual address of the section
-         * @param offset     file offset of the section contents
-         * @param size       section size in bytes
-         * @param link       auxiliary link field whose meaning depends on {@code type}
-         * @param info       auxiliary info field whose meaning depends on {@code type}
-         * @param entrySize  size of each fixed-size entry for table-like sections
-         */
-        private RawSection(int index, int nameOffset, long type, long flags, long address, long offset,
-                long size, int link, int info, long entrySize) {
-            this.index = index;
-            this.nameOffset = nameOffset;
-            this.type = type;
-            this.flags = flags;
-            this.address = address;
-            this.offset = offset;
-            this.size = size;
-            this.link = link;
-            this.info = info;
-            this.entrySize = entrySize;
-        }
+    private static record RawSection(
+            int index,
+            int nameOffset,
+            long type,
+            long flags,
+            long address,
+            long offset,
+            long size,
+            int link,
+            int info,
+            long entrySize) {
     }
 }

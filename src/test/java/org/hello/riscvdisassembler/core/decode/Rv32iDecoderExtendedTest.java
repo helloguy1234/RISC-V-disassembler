@@ -69,6 +69,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("auipc", ir.mnemonic());
         assertEquals(List.of("t0", "0xabcde000"), ir.operands());
         assertEquals("U", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -148,6 +150,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("lw", ir.mnemonic());
         assertEquals(List.of("a2", "12(sp)"), ir.operands());
         assertEquals("I", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -160,6 +164,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("sw", ir.mnemonic());
         assertEquals(List.of("a3", "16(sp)"), ir.operands());
         assertEquals("S", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -172,6 +178,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("addi", ir.mnemonic());
         assertEquals(List.of("a4", "a4", "-1"), ir.operands());
         assertEquals("I", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -184,6 +192,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("add", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -196,6 +206,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("sll", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -208,6 +220,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("slt", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -220,6 +234,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("sltu", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -232,6 +248,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("xor", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -244,6 +262,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("srl", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -256,6 +276,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("sra", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -268,6 +290,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("or", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -280,6 +304,8 @@ class Rv32iDecoderExtendedTest {
         assertEquals("and", ir.mnemonic());
         assertEquals(List.of("t0", "t1", "t2"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -292,17 +318,22 @@ class Rv32iDecoderExtendedTest {
         assertEquals("sub", ir.mnemonic());
         assertEquals(List.of("a5", "a5", "a0"), ir.operands());
         assertEquals("R", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
     void testInvalidRTypeFunct7() {
-        // opcode=0x33, rd=5, rs1=6, rs2=7, funct3=0, funct7=0x01 (Không hợp lệ cho lệnh add)
+        // opcode=0x33, rd=5, rs1=6, rs2=7, funct3=0, funct7=0x01 (Không hợp lệ cho lệnh
+        // add)
         int instruction = 0x027302b3;
         InstructionIr ir = decodeSingleInstruction(instruction);
 
         assertEquals(".word", ir.mnemonic());
         assertEquals(List.of("0x027302b3"), ir.operands());
         assertEquals("RAW", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
     }
 
     @Test
@@ -314,5 +345,68 @@ class Rv32iDecoderExtendedTest {
         assertEquals(".word", ir.mnemonic());
         assertEquals(List.of("0x00000000"), ir.operands());
         assertEquals("RAW", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
+    }
+
+    @Test
+    void testFence() {
+        // fence - opcode=0x0F, funct3=0
+        int instruction = 0x0000000f;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertEquals("fence", ir.mnemonic());
+        assertEquals(List.of(), ir.operands());
+        assertEquals("I", ir.format());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
+    }
+
+    @Test
+    void testSrli() {
+        // srli t0, t1, 4 - funct7=0x00
+        // opcode=0x13, rd=5, rs1=6, funct3=5, funct7=0x00, shamt=4
+        int instruction = 0x00435293;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertEquals("srli", ir.mnemonic());
+        assertEquals(List.of("t0", "t1", "4"), ir.operands());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
+    }
+
+    @Test
+    void testSrai() {
+        // srai t0, t1, 4 - funct7=0x20
+        // opcode=0x13, rd=5, rs1=6, funct3=5, funct7=0x20, shamt=4
+        int instruction = 0x40435293;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertEquals("srai", ir.mnemonic());
+        assertEquals(List.of("t0", "t1", "4"), ir.operands());
+        assertEquals(InstructionIr.ControlFlowType.NORMAL, ir.controlFlowType());
+        assertEquals(null, ir.branchTarget());
+    }
+
+    @Test
+    void testEcall() {
+        // ecall - opcode=0x73, funct3=0, imm=0
+        int instruction = 0x00000073;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertEquals("ecall", ir.mnemonic());
+        assertEquals(List.of(), ir.operands());
+        assertEquals(InstructionIr.ControlFlowType.TERMINATOR, ir.controlFlowType());
+    }
+
+    @Test
+    void testEbreak() {
+        // ebreak - opcode=0x73, funct3=0, imm=1
+        int instruction = 0x00100073;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertEquals("ebreak", ir.mnemonic());
+        assertEquals(List.of(), ir.operands());
+        assertEquals(InstructionIr.ControlFlowType.TERMINATOR, ir.controlFlowType());
     }
 }
