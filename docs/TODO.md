@@ -2,16 +2,16 @@
 
 ## format
 
-- [<completed/incomplete>] <priority> <description>
-  completed will be note witd v, incompleted is noted with x
+- [<complete>] <priority> <description>
+  completed will be note witd v
   priority start from 0 is highest priority
 
 ## Core Analysis & Discovery
 
 _Các task phục hồi Indirect Branch dưới đây phải được thực hiện theo đúng thứ tự (Step 1 -> Step 4)._
 
-- [ ] 1 **[Step 1] IR & Semantic Lifting:** Nâng cấp cấu trúc `InstructionIr` thành hệ thống IR ngữ nghĩa (mô hình hóa phép gán, phép tính đại số).
-  - _Kiến trúc:_ Bổ sung vào package `org.hello.riscvdisassembler.core.decode.model`. Xây dựng cây cú pháp trừu tượng (AST) nội bộ với interface `Expression` và các record con: `RegisterExpr`, `ImmediateExpr`, `BinaryOpExpr`, `MemoryLoadExpr`, `UnknownExpr`.
+- [ ] 1 **[Step 1] IR & Semantic Lifting:** Nâng cấp cấu trúc `InstructionIr` thành hệ thống IR ngữ nghĩa bằng cách đính kèm cây AST (abstract syntax tree) cho từng lệnh. Cụ thể: mô hình hóa lệnh dưới dạng một phép gán độc lập gồm Vế trái (LHS - thanh ghi đích) và Vế phải (RHS - biểu thức toán học).
+  - _Kiến trúc:_ Bổ sung vào package `org.hello.riscvdisassembler.core.decode.model`. Tạo interface `Expression` và các record con: `RegisterExpr`, `ImmediateExpr`, `BinaryOpExpr`, `MemoryLoadExpr`, `UnknownExpr`, cùng với `AssignExpr(RegisterExpr lhs, Expression rhs)`. Bổ sung thêm trường `AssignExpr semantic` vào record `InstructionIr`.
   - _Phạm vi thực hiện (Partial Lifting):_
     - Nhóm Address/ALU: `addi`, `add`, `slli`, `lui`, `auipc`.
     - Nhóm Memory Load: `lw`.
