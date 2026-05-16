@@ -18,7 +18,7 @@ Trong đó:
 
 1. **Nhận diện và Theo dõi Biểu thức (Structural Tracking):**  
    - *Mô tả:* Hệ thống phải thiết lập được phương trình toán học tạo nên con trỏ đích nhằm bóc tách biến chỉ số ($Index$), địa chỉ cơ sở ($Base$), và hệ số nhân ($Scale$).  
-   - *Kỹ thuật giải quyết:* Thay vì so khớp mẫu cú pháp (pattern-matching) vốn dễ bị đánh lừa bởi mã tối ưu hóa (optimized code), kỹ thuật tiên tiến sử dụng **Miền trừu tượng Cấu trúc (Abstract Domain D)**. Kỹ thuật này duy trì các phép tính dưới dạng phương trình đại số, giúp bảo toàn mối quan hệ cấu trúc giữa các biến số mà không vội vàng định giá trị cụ thể [1].  
+   - *Kỹ thuật giải quyết:* Thay vì so khớp mẫu cú pháp (pattern-matching) vốn dễ bị đánh lừa bởi mã tối ưu hóa (optimized code), kỹ thuật tiên tiến sử dụng **Miền trừu tượng Cấu trúc (Abstract Domain D)**. Kỹ thuật này duy trì các phép tính dưới dạng phương trình đại số qua AST (Abstract Syntax Tree), giúp bảo toàn mối quan hệ cấu trúc giữa các biến số mà không vội vàng định giá trị cụ thể [1].  
 
 2. **Phân tích Giới hạn (Bounds Analysis):**  
    - *Mô tả:* Xác định số lượng nhánh rẽ hợp lệ của bảng nhảy bằng cách nội suy cận trên và cận dưới của biến chỉ số thông qua các lệnh kiểm tra ranh giới (bounds checks) trong mã (ví dụ: lệnh so sánh `cmp` trước khi rẽ nhánh).  
