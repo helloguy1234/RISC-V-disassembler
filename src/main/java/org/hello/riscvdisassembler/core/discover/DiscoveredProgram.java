@@ -6,7 +6,8 @@ import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
 import java.util.List;
 
 /**
- * Output of the discovery phase: resolved metadata plus decoded reachable instructions.
+ * Output of the discovery phase: resolved metadata plus decoded reachable
+ * instructions.
  */
 public final class DiscoveredProgram {
     private final ResolvedProgram resolvedProgram;
@@ -19,13 +20,16 @@ public final class DiscoveredProgram {
      * Creates a discovered-program view.
      *
      * @param resolvedProgram resolved metadata used during discovery
-     * @param instructions decoded instructions retained by the traversal strategy
-     * @param edges direct control-flow edges between retained instructions
-     * @param regions discovered code/data regions
-     * @param mode discovery strategy that produced this result
+     * @param instructions    decoded instructions retained by the traversal
+     *                        strategy
+     * @param edges           direct control-flow edges between retained
+     *                        instructions
+     * @param regions         discovered code/data regions
+     * @param mode            discovery strategy that produced this result
      */
-    public DiscoveredProgram(ResolvedProgram resolvedProgram, List<InstructionIr> instructions, List<ControlFlowEdge> edges,
-                             List<DiscoveredRegion> regions, DiscoveryMode mode) {
+    public DiscoveredProgram(ResolvedProgram resolvedProgram, List<InstructionIr> instructions,
+            List<ControlFlowEdge> edges,
+            List<DiscoveredRegion> regions, DiscoveryMode mode) {
         this.resolvedProgram = resolvedProgram;
         this.instructions = List.copyOf(instructions);
         this.edges = List.copyOf(edges);
@@ -58,4 +62,3 @@ public final class DiscoveredProgram {
         return mode;
     }
 }
-

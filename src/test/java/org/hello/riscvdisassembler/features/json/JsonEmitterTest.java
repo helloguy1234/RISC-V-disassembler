@@ -35,31 +35,28 @@ class JsonEmitterTest {
         // Prepare dummy data
         BinarySection section = new BinarySection(1, ".text", 0x1000L, 0L, 16L, true);
         BinaryImage image = new BinaryImage(0x1000L, new byte[16], List.of(section), List.of());
-        
+
         // Symbols
         BinarySymbol symbol = new BinarySymbol("main", 0x1000L, 4L, 0, 0, 1);
         NavigableMap<Long, BinarySymbol> symbolsByAddress = new TreeMap<>();
         symbolsByAddress.put(0x1000L, symbol);
-        
+
         ResolvedProgram resolvedProgram = new ResolvedProgram(
-                image, 
-                List.of(section), 
-                symbolsByAddress, 
-                Map.of(".text", symbolsByAddress)
-        );
-        
+                image,
+                List.of(section),
+                symbolsByAddress,
+                Map.of(".text", symbolsByAddress));
+
         DiscoveredRegion region = new DiscoveredRegion(".text", 0x1000, 0x1004, RegionKind.CODE, "Entry point");
         ControlFlowEdge edge = new ControlFlowEdge(0x1000, 0x1004);
-        
+
         InstructionIr instruction = new InstructionIr(
                 0x1000L, 0x00000013, "nop", List.of(), "I",
-                InstructionIr.ControlFlowType.NORMAL, null, ".text"
-        );
+                InstructionIr.ControlFlowType.NORMAL, null, ".text", null);
 
         DiscoveredProgram program = new DiscoveredProgram(
                 resolvedProgram, List.of(instruction), List.of(edge),
-                List.of(region), DiscoveryMode.LINEAR
-        );
+                List.of(region), DiscoveryMode.LINEAR);
 
         String json = jsonEmitter.emit(program);
 
@@ -75,15 +72,14 @@ class JsonEmitterTest {
         assertTrue(json.contains("\"mnemonic\": \"nop\""));
         assertTrue(json.contains("\"branchTarget\": null"));
     }
-    
+
     @Test
     void testEmitEmptyProgram() {
         BinaryImage image = new BinaryImage(0x0L, new byte[0], List.of(), List.of());
         ResolvedProgram resolvedProgram = new ResolvedProgram(image, List.of(), new TreeMap<>(), Map.of());
         DiscoveredProgram program = new DiscoveredProgram(
                 resolvedProgram, List.of(), List.of(),
-                List.of(), DiscoveryMode.LINEAR
-        );
+                List.of(), DiscoveryMode.LINEAR);
 
         String json = jsonEmitter.emit(program);
 

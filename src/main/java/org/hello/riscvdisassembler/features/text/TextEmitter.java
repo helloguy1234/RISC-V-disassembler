@@ -7,8 +7,6 @@ import org.hello.riscvdisassembler.core.discover.RegionKind;
 import org.hello.riscvdisassembler.core.binary.model.BinarySymbol;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
 
-import java.util.List;
-
 /**
  * Renders decoded instructions as human-readable assembly text.
  */

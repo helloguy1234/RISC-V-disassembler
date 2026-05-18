@@ -29,8 +29,8 @@ class RegionClassifierTest {
     @Test
     void testClassifyLinearMode() {
         List<InstructionIr> instructions = List.of(
-                new InstructionIr(0x1000, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text")
-        );
+                new InstructionIr(0x1000, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text",
+                        null));
 
         List<DiscoveredRegion> regions = classifier.classify(resolvedProgram, instructions, DiscoveryMode.LINEAR);
 
@@ -66,14 +66,15 @@ class RegionClassifierTest {
         // Code run: 0x1004 to 0x100C (length 8)
         // Gap at end: 0x100C to 0x1014
         List<InstructionIr> instructions = List.of(
-                new InstructionIr(0x1004, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text"),
-                new InstructionIr(0x1008, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text")
-        );
+                new InstructionIr(0x1004, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text",
+                        null),
+                new InstructionIr(0x1008, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text",
+                        null));
 
         List<DiscoveredRegion> regions = classifier.classify(resolvedProgram, instructions, DiscoveryMode.RECURSIVE);
 
         assertEquals(3, regions.size());
-        
+
         // Gap at start
         assertEquals(0x1000, regions.get(0).start());
         assertEquals(0x1004, regions.get(0).end());
@@ -92,7 +93,7 @@ class RegionClassifierTest {
         assertEquals(RegionKind.DATA, regions.get(2).kind());
         assertEquals("unreachable-gap", regions.get(2).reason());
     }
-    
+
     @Test
     void testClassifyMiddleGap() {
         // Section: 0x1000 to 0x1014 (size 20)
@@ -101,9 +102,10 @@ class RegionClassifierTest {
         // Middle gap: 0x1004 to 0x1010
         // Code run 2: 0x1010 to 0x1014
         List<InstructionIr> instructions = List.of(
-                new InstructionIr(0x1000, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text"),
-                new InstructionIr(0x1010, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null, ".text")
-        );
+                new InstructionIr(0x1000, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null,
+                        ".text", null),
+                new InstructionIr(0x1010, 0, "nop", List.of(), "I", InstructionIr.ControlFlowType.NORMAL, null,
+                        ".text", null));
 
         List<DiscoveredRegion> regions = classifier.classify(resolvedProgram, instructions, DiscoveryMode.RECURSIVE);
 

@@ -5,8 +5,11 @@ import java.nio.file.Path;
 /**
  * Immutable request object describing one disassembly action.
  *
- * <p>This type is shared by the CLI and the JavaFX UI so both presentation layers can
- * invoke the same pipeline with the same set of options.</p>
+ * <p>
+ * This type is shared by the CLI and the JavaFX UI so both presentation layers
+ * can
+ * invoke the same pipeline with the same set of options.
+ * </p>
  */
 public final class DisassemblyRequest {
     private final Path input;
@@ -20,16 +23,19 @@ public final class DisassemblyRequest {
     /**
      * Creates a new disassembly request.
      *
-     * @param input input file path, or {@code null} when a UI is opened without a preselected file
-     * @param format output format such as {@code asm}, {@code json}, or {@code cfg}
-     * @param output optional output file path
-     * @param debug whether full stack traces should be printed on failure
-     * @param headerOnly whether only the ELF header should be parsed
+     * @param input          input file path, or {@code null} when a UI is opened
+     *                       without a preselected file
+     * @param format         output format such as {@code asm}, {@code json}, or
+     *                       {@code cfg}
+     * @param output         optional output file path
+     * @param debug          whether full stack traces should be printed on failure
+     * @param headerOnly     whether only the ELF header should be parsed
      * @param disassembleAll whether every section should be treated as executable
-     * @param uiMode whether the request should launch the JavaFX user interface
+     * @param uiMode         whether the request should launch the JavaFX user
+     *                       interface
      */
     public DisassemblyRequest(Path input, String format, Path output, boolean debug,
-                              boolean headerOnly, boolean disassembleAll, boolean uiMode) {
+            boolean headerOnly, boolean disassembleAll, boolean uiMode) {
         this.input = input;
         this.format = format;
         this.output = output;
@@ -74,4 +80,3 @@ public final class DisassemblyRequest {
         return uiMode;
     }
 }
-

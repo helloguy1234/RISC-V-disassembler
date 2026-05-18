@@ -19,8 +19,8 @@ class InstructionIrTest {
                 "I",
                 InstructionIr.ControlFlowType.NORMAL,
                 null,
-                ".text"
-        );
+                ".text",
+                null);
 
         assertEquals(0x1000, instruction.address());
         assertEquals(0x00000013, instruction.rawInstruction());
@@ -30,8 +30,9 @@ class InstructionIrTest {
         assertEquals(InstructionIr.ControlFlowType.NORMAL, instruction.controlFlowType());
         assertNull(instruction.branchTarget());
         assertEquals(".text", instruction.sectionName());
+        assertNull(instruction.semantic());
     }
-    
+
     @Test
     void testInstructionIrWithBranchTarget() {
         InstructionIr instruction = new InstructionIr(
@@ -42,8 +43,8 @@ class InstructionIrTest {
                 "J",
                 InstructionIr.ControlFlowType.UNCONDITIONAL_JUMP,
                 0x1008L,
-                ".text"
-        );
+                ".text",
+                null);
 
         assertEquals(InstructionIr.ControlFlowType.UNCONDITIONAL_JUMP, instruction.controlFlowType());
         assertEquals(0x1008L, instruction.branchTarget());

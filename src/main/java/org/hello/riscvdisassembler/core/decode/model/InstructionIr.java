@@ -1,12 +1,18 @@
 package org.hello.riscvdisassembler.core.decode.model;
 
+import org.hello.riscvdisassembler.core.decode.model.ast.AssignExpr;
+
 import java.util.List;
 
 /**
  * Intermediate representation of one decoded instruction.
  *
- * <p>This abstraction decouples bit-level decoding from output and analysis stages.
- * Downstream components consume a normalized structure instead of reinterpreting raw bits.</p>
+ * <p>
+ * This abstraction decouples bit-level decoding from output and analysis
+ * stages.
+ * Downstream components consume a normalized structure instead of
+ * reinterpreting raw bits.
+ * </p>
  */
 public final class InstructionIr {
     private final long address;
@@ -17,22 +23,27 @@ public final class InstructionIr {
     private final ControlFlowType controlFlowType;
     private final Long branchTarget;
     private final String sectionName;
+    private final AssignExpr semantic;
 
     /**
      * Creates a decoded instruction IR node.
      *
-     * @param address instruction address
-     * @param rawInstruction raw 32-bit machine word
-     * @param mnemonic decoded mnemonic such as {@code addi} or {@code jal}
-     * @param operands textual operand list in display order
-     * @param format instruction encoding family such as {@code R}, {@code I}, or {@code RAW}
+     * @param address         instruction address
+     * @param rawInstruction  raw 32-bit machine word
+     * @param mnemonic        decoded mnemonic such as {@code addi} or {@code jal}
+     * @param operands        textual operand list in display order
+     * @param format          instruction encoding family such as {@code R},
+     *                        {@code I}, or {@code RAW}
      * @param controlFlowType semantic control-flow category for CFG construction
-     * @param branchTarget resolved direct branch or jump target when statically known; otherwise {@code null}
-     * @param sectionName name of the section that owns this instruction
+     * @param branchTarget    resolved direct branch or jump target when statically
+     *                        known; otherwise {@code null}
+     * @param sectionName     name of the section that owns this instruction
+     * @param semantic        semantic AST representing the instruction's effect, or
+     *                        {@code null} if unknown
      */
     public InstructionIr(long address, int rawInstruction, String mnemonic, List<String> operands,
-                         String format, ControlFlowType controlFlowType, Long branchTarget,
-                         String sectionName) {
+            String format, ControlFlowType controlFlowType, Long branchTarget,
+            String sectionName, AssignExpr semantic) {
         this.address = address;
         this.rawInstruction = rawInstruction;
         this.mnemonic = mnemonic;
@@ -41,6 +52,7 @@ public final class InstructionIr {
         this.controlFlowType = controlFlowType;
         this.branchTarget = branchTarget;
         this.sectionName = sectionName;
+        this.semantic = semantic;
     }
 
     /** @return instruction address */
@@ -73,7 +85,10 @@ public final class InstructionIr {
         return controlFlowType;
     }
 
-    /** @return direct branch target address, or {@code null} when unknown or not applicable */
+    /**
+     * @return direct branch target address, or {@code null} when unknown or not
+     *         applicable
+     */
     public Long branchTarget() {
         return branchTarget;
     }
@@ -84,10 +99,21 @@ public final class InstructionIr {
     }
 
     /**
-     * Control-flow categories recognized by the decoder and consumed by CFG analysis.
+     * @return semantic AST representing the instruction's effect, or {@code null}
+     *         if unknown
+     */
+    public AssignExpr semantic() {
+        return semantic;
+    }
+
+    /**
+     * Control-flow categories recognized by the decoder and consumed by CFG
+     * analysis.
      */
     public enum ControlFlowType {
-        /** Ordinary instruction that falls through to the next sequential instruction. */
+        /**
+         * Ordinary instruction that falls through to the next sequential instruction.
+         */
         NORMAL,
         /** Conditional branch with a taken edge and a fall-through edge. */
         CONDITIONAL_BRANCH,
@@ -97,8 +123,10 @@ public final class InstructionIr {
         CALL,
         /** Procedure return instruction. */
         RETURN,
-        /** Instruction that terminates local execution such as {@code ecall} or {@code ebreak}. */
+        /**
+         * Instruction that terminates local execution such as {@code ecall} or
+         * {@code ebreak}.
+         */
         TERMINATOR
     }
 }
-

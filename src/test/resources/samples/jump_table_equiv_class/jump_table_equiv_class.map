@@ -1,0 +1,43 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD /tmp/ccm3GAAU.o
+                0x80000000                        . = 0x80000000
+
+.text           0x80000000       0x50
+ *(.init)
+ *(.text.entry)
+ *(.text .text.*)
+ .text          0x80000000       0x50 /tmp/ccm3GAAU.o
+                0x80000000                _start
+
+.rodata         0x80000050        0xc
+ *(.rodata .rodata.*)
+ .rodata        0x80000050        0xc /tmp/ccm3GAAU.o
+
+.data           0x8000005c        0x0
+ *(.data .data.*)
+ .data          0x8000005c        0x0 /tmp/ccm3GAAU.o
+
+.bss            0x8000005c        0x0
+ *(.bss .bss.*)
+ .bss           0x8000005c        0x0 /tmp/ccm3GAAU.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(jump_table_equiv_class.elf elf32-littleriscv)
+
+.riscv.attributes
+                0x00000000       0x1a
+ .riscv.attributes
+                0x00000000       0x1a /tmp/ccm3GAAU.o

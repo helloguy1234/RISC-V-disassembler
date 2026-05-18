@@ -3,6 +3,7 @@ package org.hello.riscvdisassembler.core.decode;
 import org.hello.riscvdisassembler.core.binary.model.BinaryImage;
 import org.hello.riscvdisassembler.core.binary.model.BinarySection;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
+import org.hello.riscvdisassembler.core.decode.model.ast.*;
 import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Rv32iDecoderExtendedTest {
 
@@ -296,7 +300,8 @@ class Rv32iDecoderExtendedTest {
 
     @Test
     void testInvalidRTypeFunct7() {
-        // opcode=0x33, rd=5, rs1=6, rs2=7, funct3=0, funct7=0x01 (Không hợp lệ cho lệnh add)
+        // opcode=0x33, rd=5, rs1=6, rs2=7, funct3=0, funct7=0x01 (Không hợp lệ cho lệnh
+        // add)
         int instruction = 0x027302b3;
         InstructionIr ir = decodeSingleInstruction(instruction);
 
@@ -314,5 +319,248 @@ class Rv32iDecoderExtendedTest {
         assertEquals(".word", ir.mnemonic());
         assertEquals(List.of("0x00000000"), ir.operands());
         assertEquals("RAW", ir.format());
+    }
+
+    @Test
+    void testLuiSemantic() {
+        // lui a0, 0xdeadb => 0xdeadb000
+        int instruction = 0xdeadb537;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("a0", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof ImmediateExpr);
+        ImmediateExpr imm = (ImmediateExpr) semantic.rhs();
+        assertEquals(0xdeadb000L, imm.value());
+    }
+
+    @Test
+    void testAuipcSemantic() {
+        // auipc t0, 0xabcde at PC=0x1000
+        int instruction = 0xabcde297;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("t0", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.ADD, binop.op());
+        assertTrue(binop.left() instanceof ImmediateExpr);
+        assertTrue(binop.right() instanceof ImmediateExpr);
+        ImmediateExpr pc = (ImmediateExpr) binop.left();
+        ImmediateExpr imm = (ImmediateExpr) binop.right();
+        assertEquals(0x1000L, pc.value());
+        assertEquals(0xabcde000L, imm.value());
+    }
+
+    @Test
+    void testAddiSemantic() {
+        // addi a4, a4, -1
+        int instruction = 0xfff70713;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("a4", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.ADD, binop.op());
+        assertTrue(binop.left() instanceof RegisterExpr);
+        assertTrue(binop.right() instanceof ImmediateExpr);
+        assertEquals("a4", ((RegisterExpr) binop.left()).name());
+        assertEquals(-1L, ((ImmediateExpr) binop.right()).value());
+    }
+
+    @Test
+    void testAddSemantic() {
+        // add t0, t1, t2
+        int instruction = 0x007302b3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("t0", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.ADD, binop.op());
+        assertTrue(binop.left() instanceof RegisterExpr);
+        assertTrue(binop.right() instanceof RegisterExpr);
+        assertEquals("t1", ((RegisterExpr) binop.left()).name());
+        assertEquals("t2", ((RegisterExpr) binop.right()).name());
+    }
+
+    @Test
+    void testSlliSemantic() {
+        // slli a0, a1, 3
+        // opcode=0x13, rd=10, rs1=11, funct3=1, funct7=0x00, shamt=3
+        int instruction = 0x00359513;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("a0", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.SHIFT_LEFT, binop.op());
+        assertTrue(binop.left() instanceof RegisterExpr);
+        assertTrue(binop.right() instanceof ImmediateExpr);
+        assertEquals("a1", ((RegisterExpr) binop.left()).name());
+        assertEquals(3L, ((ImmediateExpr) binop.right()).value());
+    }
+
+    @Test
+    void testLwSemantic() {
+        // lw a2, 12(sp)
+        int instruction = 0x00c12603;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("a2", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof MemoryLoadExpr);
+        MemoryLoadExpr load = (MemoryLoadExpr) semantic.rhs();
+        assertEquals(4, load.sizeBytes());
+        assertTrue(load.baseAddress() instanceof BinaryOpExpr);
+        BinaryOpExpr addr = (BinaryOpExpr) load.baseAddress();
+        assertEquals(Operator.ADD, addr.op());
+        assertTrue(addr.left() instanceof RegisterExpr);
+        assertTrue(addr.right() instanceof ImmediateExpr);
+        assertEquals("sp", ((RegisterExpr) addr.left()).name());
+        assertEquals(12L, ((ImmediateExpr) addr.right()).value());
+    }
+
+    @Test
+    void testBeqSemantic() {
+        // beq a0, a1, -8
+        int instruction = 0xfeb50ce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.EQUAL, binop.op());
+        assertTrue(binop.left() instanceof RegisterExpr);
+        assertTrue(binop.right() instanceof RegisterExpr);
+        assertEquals("a0", ((RegisterExpr) binop.left()).name());
+        assertEquals("a1", ((RegisterExpr) binop.right()).name());
+    }
+
+    @Test
+    void testBneSemantic() {
+        // bne a0, a1, -8
+        int instruction = 0xfeb51ce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.NOT_EQUAL, binop.op());
+    }
+
+    @Test
+    void testBltSemantic() {
+        // blt a0, a1, -8
+        int instruction = 0xfeb54ce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.LESS_THAN, binop.op());
+    }
+
+    @Test
+    void testBgeSemantic() {
+        // bge a0, a1, -8
+        int instruction = 0xfeb05ce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.GREATER_EQUAL, binop.op());
+    }
+
+    @Test
+    void testBltuSemantic() {
+        // bltu a0, a1, -8
+        int instruction = 0xfeb56ce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.LESS_THAN_UNSIGNED, binop.op());
+    }
+
+    @Test
+    void testBgeuSemantic() {
+        // bgeu a0, a1, -8
+        int instruction = 0xfe05fce3;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$cond", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr binop = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.GREATER_EQUAL_UNSIGNED, binop.op());
+    }
+
+    @Test
+    void testSwSemantic() {
+        // sw a3, 16(sp) - store has no rd, so semantic should be null
+        int instruction = 0x00d12823;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNull(ir.semantic());
+    }
+
+    @Test
+    void testJalSemantic() {
+        // jal ra, 0x20
+        int instruction = 0x014000ef;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("ra", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof ImmediateExpr);
+        assertEquals(0x1004L, ((ImmediateExpr) semantic.rhs()).value()); // PC + 4
+    }
+
+    @Test
+    void testJalrSemantic() {
+        // jalr ra, t2, 8 - indirect jump, target is computed as t2 + 8
+        int instruction = 0x008380e7;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNotNull(ir.semantic());
+        AssignExpr semantic = ir.semantic();
+        assertEquals("$target", semantic.lhs().name());
+        assertTrue(semantic.rhs() instanceof BinaryOpExpr);
+        BinaryOpExpr rhs = (BinaryOpExpr) semantic.rhs();
+        assertEquals(Operator.ADD, rhs.op());
+    }
+
+    @Test
+    void testEcallSemantic() {
+        // ecall - no rd, so semantic should be null
+        int instruction = 0x00000073;
+        InstructionIr ir = decodeSingleInstruction(instruction);
+
+        assertNull(ir.semantic());
     }
 }

@@ -1,0 +1,43 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD /tmp/cciwTp5I.o
+                0x80000000                        . = 0x80000000
+
+.text           0x80000000       0x58
+ *(.init)
+ *(.text.entry)
+ *(.text .text.*)
+ .text          0x80000000       0x58 /tmp/cciwTp5I.o
+                0x80000000                _start
+
+.rodata         0x80000058       0x10
+ *(.rodata .rodata.*)
+ .rodata        0x80000058       0x10 /tmp/cciwTp5I.o
+
+.data           0x80000068        0x0
+ *(.data .data.*)
+ .data          0x80000068        0x0 /tmp/cciwTp5I.o
+
+.bss            0x80000068        0x0
+ *(.bss .bss.*)
+ .bss           0x80000068        0x0 /tmp/cciwTp5I.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(/mnt/d/BT/RISC-V-disassembler/samples/jump_table_equiv_class/jump_table_equiv_class.elf elf32-littleriscv)
+
+.riscv.attributes
+                0x00000000       0x1a
+ .riscv.attributes
+                0x00000000       0x1a /tmp/cciwTp5I.o

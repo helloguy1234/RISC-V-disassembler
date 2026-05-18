@@ -2,6 +2,7 @@ package org.hello.riscvdisassembler.core.decode;
 
 import org.hello.riscvdisassembler.core.binary.model.BinarySection;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
+import org.hello.riscvdisassembler.core.decode.model.ast.*;
 import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
 
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import static org.hello.riscvdisassembler.core.decode.model.InstructionIr.Contro
  * </p>
  */
 public final class Rv32iDecoder implements InstructionDecoder {
+    private static final String RAW_WORD_MNEMONIC = ".word";
     private static final String[] REGISTERS = {
             "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
             "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -83,12 +85,23 @@ public final class Rv32iDecoder implements InstructionDecoder {
         int funct7 = (word >>> 25) & 0x7F;
 
         switch (opcode) {
-            case 0x37:
-                return ir(pc, word, "lui", ops(reg(rd), hex(Integer.toUnsignedLong(immU(word)))), "U",
-                        ControlFlowType.NORMAL, null, sectionName);
-            case 0x17:
-                return ir(pc, word, "auipc", ops(reg(rd), hex(Integer.toUnsignedLong(immU(word)))), "U",
-                        ControlFlowType.NORMAL, null, sectionName);
+            case 0x37: {
+                int imm = immU(word);
+                AssignExpr semantic = new AssignExpr(
+                        new RegisterExpr(reg(rd)),
+                        new ImmediateExpr(Integer.toUnsignedLong(imm)));
+                return ir(pc, word, "lui", ops(reg(rd), hex(Integer.toUnsignedLong(imm))), "U",
+                        ControlFlowType.NORMAL, null, sectionName, semantic);
+            }
+            case 0x17: {
+                int imm = immU(word);
+                AssignExpr semantic = new AssignExpr(
+                        new RegisterExpr(reg(rd)),
+                        new BinaryOpExpr(Operator.ADD, new ImmediateExpr(pc),
+                                new ImmediateExpr(Integer.toUnsignedLong(imm))));
+                return ir(pc, word, "auipc", ops(reg(rd), hex(Integer.toUnsignedLong(imm))), "U",
+                        ControlFlowType.NORMAL, null, sectionName, semantic);
+            }
             case 0x6F:
                 return decodeJal(pc, word, rd, sectionName);
             case 0x67:
@@ -105,11 +118,11 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 return decodeOp(pc, word, rd, rs1, rs2, funct3, funct7, sectionName);
             case 0x0F:
                 return ir(pc, word, funct3 == 0 ? "fence" : "fence.i", noOps(), "I", ControlFlowType.NORMAL, null,
-                        sectionName);
+                        sectionName, null);
             case 0x73:
                 return decodeSystem(pc, word, rd, rs1, funct3, sectionName);
             default:
-                return raw(pc, word, sectionName);
+                return raw(pc, word, sectionName, null);
         }
     }
 
@@ -126,7 +139,11 @@ public final class Rv32iDecoder implements InstructionDecoder {
         int imm = immJ(word);
         long target = (pc + imm) & 0xFFFFFFFFL;
         ControlFlowType type = (rd == 1 || rd == 5) ? ControlFlowType.CALL : ControlFlowType.UNCONDITIONAL_JUMP;
-        return ir(pc, word, "jal", ops(reg(rd), hex(target)), "J", type, target, sectionName);
+        AssignExpr semantic = new AssignExpr(
+                new RegisterExpr(reg(rd)),
+                new ImmediateExpr(pc + 4) // Return address
+        );
+        return ir(pc, word, "jal", ops(reg(rd), hex(target)), "J", type, target, sectionName, semantic);
     }
 
     /**
@@ -143,7 +160,7 @@ public final class Rv32iDecoder implements InstructionDecoder {
      */
     private InstructionIr decodeJalr(long pc, int word, int rd, int rs1, int funct3, String sectionName) {
         if (funct3 != 0) {
-            return raw(pc, word, sectionName);
+            return raw(pc, word, sectionName, null);
         }
         int imm = immI(word);
         ControlFlowType type;
@@ -154,7 +171,13 @@ public final class Rv32iDecoder implements InstructionDecoder {
         } else {
             type = ControlFlowType.UNCONDITIONAL_JUMP;
         }
-        return ir(pc, word, "jalr", ops(reg(rd), imm + "(" + reg(rs1) + ")"), "I", type, null, sectionName);
+        // jalr writes return address (PC+4) to rd, target is rs1 + imm
+        // Use $target to represent the computed target address for indirect branch
+        // analysis
+        AssignExpr semantic = new AssignExpr(
+                new RegisterExpr("$target"),
+                new BinaryOpExpr(Operator.ADD, new RegisterExpr(reg(rs1)), new ImmediateExpr(imm)));
+        return ir(pc, word, "jalr", ops(reg(rd), imm + "(" + reg(rs1) + ")"), "I", type, null, sectionName, semantic);
     }
 
     /**
@@ -170,35 +193,46 @@ public final class Rv32iDecoder implements InstructionDecoder {
      */
     private InstructionIr decodeBranch(long pc, int word, int rs1, int rs2, int funct3, String sectionName) {
         String mnemonic;
+        Operator op;
         switch (funct3) {
             case 0:
                 mnemonic = "beq";
+                op = Operator.EQUAL;
                 break;
             case 1:
                 mnemonic = "bne";
+                op = Operator.NOT_EQUAL;
                 break;
             case 4:
                 mnemonic = "blt";
+                op = Operator.LESS_THAN;
                 break;
             case 5:
                 mnemonic = "bge";
+                op = Operator.GREATER_EQUAL;
                 break;
             case 6:
                 mnemonic = "bltu";
+                op = Operator.LESS_THAN_UNSIGNED;
                 break;
             case 7:
                 mnemonic = "bgeu";
+                op = Operator.GREATER_EQUAL_UNSIGNED;
                 break;
             default:
-                mnemonic = ".word";
+                mnemonic = RAW_WORD_MNEMONIC;
+                op = null;
                 break;
         }
-        if (mnemonic.equals(".word")) {
-            return raw(pc, word, sectionName);
+        if (mnemonic.equals(RAW_WORD_MNEMONIC)) {
+            return raw(pc, word, sectionName, null);
         }
         long target = (pc + immB(word)) & 0xFFFFFFFFL;
+        AssignExpr semantic = new AssignExpr(
+                new RegisterExpr("$cond"),
+                new BinaryOpExpr(op, new RegisterExpr(reg(rs1)), new RegisterExpr(reg(rs2))));
         return ir(pc, word, mnemonic, ops(reg(rs1), reg(rs2), hex(target)), "B", ControlFlowType.CONDITIONAL_BRANCH,
-                target, sectionName);
+                target, sectionName, semantic);
     }
 
     /**
@@ -214,31 +248,44 @@ public final class Rv32iDecoder implements InstructionDecoder {
      */
     private InstructionIr decodeLoad(long pc, int word, int rd, int rs1, int funct3, String sectionName) {
         String mnemonic;
+        int sizeBytes;
         switch (funct3) {
             case 0:
                 mnemonic = "lb";
+                sizeBytes = 1;
                 break;
             case 1:
                 mnemonic = "lh";
+                sizeBytes = 2;
                 break;
             case 2:
                 mnemonic = "lw";
+                sizeBytes = 4;
                 break;
             case 4:
                 mnemonic = "lbu";
+                sizeBytes = 1;
                 break;
             case 5:
                 mnemonic = "lhu";
+                sizeBytes = 2;
                 break;
             default:
-                mnemonic = ".word";
+                mnemonic = RAW_WORD_MNEMONIC;
+                sizeBytes = 0;
                 break;
         }
-        if (mnemonic.equals(".word")) {
-            return raw(pc, word, sectionName);
+        if (mnemonic.equals(RAW_WORD_MNEMONIC)) {
+            return raw(pc, word, sectionName, null);
         }
-        return ir(pc, word, mnemonic, ops(reg(rd), immI(word) + "(" + reg(rs1) + ")"), "I", ControlFlowType.NORMAL,
-                null, sectionName);
+        int offset = immI(word);
+        AssignExpr semantic = new AssignExpr(
+                new RegisterExpr(reg(rd)),
+                new MemoryLoadExpr(
+                        new BinaryOpExpr(Operator.ADD, new RegisterExpr(reg(rs1)), new ImmediateExpr(offset)),
+                        sizeBytes));
+        return ir(pc, word, mnemonic, ops(reg(rd), offset + "(" + reg(rs1) + ")"), "I", ControlFlowType.NORMAL,
+                null, sectionName, semantic);
     }
 
     /**
@@ -265,14 +312,15 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 mnemonic = "sw";
                 break;
             default:
-                mnemonic = ".word";
+                mnemonic = RAW_WORD_MNEMONIC;
                 break;
         }
-        if (mnemonic.equals(".word")) {
-            return raw(pc, word, sectionName);
+        if (mnemonic.equals(RAW_WORD_MNEMONIC)) {
+            return raw(pc, word, sectionName, null);
         }
+        // Store instructions have no rd, so semantic = null
         return ir(pc, word, mnemonic, ops(reg(rs2), immS(word) + "(" + reg(rs1) + ")"), "S", ControlFlowType.NORMAL,
-                null, sectionName);
+                null, sectionName, null);
     }
 
     /**
@@ -290,11 +338,17 @@ public final class Rv32iDecoder implements InstructionDecoder {
     private InstructionIr decodeOpImm(long pc, int word, int rd, int rs1, int funct3, int funct7, String sectionName) {
         String mnemonic;
         List<String> operands;
+        AssignExpr semantic = null;
         switch (funct3) {
-            case 0:
+            case 0: {
                 mnemonic = "addi";
-                operands = ops(reg(rd), reg(rs1), Integer.toString(immI(word)));
+                int imm = immI(word);
+                operands = ops(reg(rd), reg(rs1), Integer.toString(imm));
+                semantic = new AssignExpr(
+                        new RegisterExpr(reg(rd)),
+                        new BinaryOpExpr(Operator.ADD, new RegisterExpr(reg(rs1)), new ImmediateExpr(imm)));
                 break;
+            }
             case 2:
                 mnemonic = "slti";
                 operands = ops(reg(rd), reg(rs1), Integer.toString(immI(word)));
@@ -317,10 +371,14 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 break;
             case 1:
                 if (funct7 != 0x00) {
-                    return raw(pc, word, sectionName);
+                    return raw(pc, word, sectionName, null);
                 }
                 mnemonic = "slli";
-                operands = ops(reg(rd), reg(rs1), Integer.toString((word >>> 20) & 0x1F));
+                int shamt = (word >>> 20) & 0x1F;
+                operands = ops(reg(rd), reg(rs1), Integer.toString(shamt));
+                semantic = new AssignExpr(
+                        new RegisterExpr(reg(rd)),
+                        new BinaryOpExpr(Operator.SHIFT_LEFT, new RegisterExpr(reg(rs1)), new ImmediateExpr(shamt)));
                 break;
             case 5:
                 if (funct7 == 0x00) {
@@ -328,14 +386,14 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 } else if (funct7 == 0x20) {
                     mnemonic = "srai";
                 } else {
-                    return raw(pc, word, sectionName);
+                    return raw(pc, word, sectionName, null);
                 }
                 operands = ops(reg(rd), reg(rs1), Integer.toString((word >>> 20) & 0x1F));
                 break;
             default:
-                return raw(pc, word, sectionName);
+                return raw(pc, word, sectionName, null);
         }
-        return ir(pc, word, mnemonic, operands, "I", ControlFlowType.NORMAL, null, sectionName);
+        return ir(pc, word, mnemonic, operands, "I", ControlFlowType.NORMAL, null, sectionName, semantic);
     }
 
     /**
@@ -354,27 +412,31 @@ public final class Rv32iDecoder implements InstructionDecoder {
     private InstructionIr decodeOp(long pc, int word, int rd, int rs1, int rs2, int funct3, int funct7,
             String sectionName) {
         String mnemonic;
+        AssignExpr semantic = null;
         switch (funct3) {
             case 0:
                 if (funct7 == 0x00) {
                     mnemonic = "add";
+                    semantic = new AssignExpr(
+                            new RegisterExpr(reg(rd)),
+                            new BinaryOpExpr(Operator.ADD, new RegisterExpr(reg(rs1)), new RegisterExpr(reg(rs2))));
                 } else if (funct7 == 0x20) {
                     mnemonic = "sub";
                 } else {
-                    mnemonic = ".word";
+                    mnemonic = RAW_WORD_MNEMONIC;
                 }
                 break;
             case 1:
-                mnemonic = funct7 == 0x00 ? "sll" : ".word";
+                mnemonic = funct7 == 0x00 ? "sll" : RAW_WORD_MNEMONIC;
                 break;
             case 2:
-                mnemonic = funct7 == 0x00 ? "slt" : ".word";
+                mnemonic = funct7 == 0x00 ? "slt" : RAW_WORD_MNEMONIC;
                 break;
             case 3:
-                mnemonic = funct7 == 0x00 ? "sltu" : ".word";
+                mnemonic = funct7 == 0x00 ? "sltu" : RAW_WORD_MNEMONIC;
                 break;
             case 4:
-                mnemonic = funct7 == 0x00 ? "xor" : ".word";
+                mnemonic = funct7 == 0x00 ? "xor" : RAW_WORD_MNEMONIC;
                 break;
             case 5:
                 if (funct7 == 0x00) {
@@ -382,23 +444,24 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 } else if (funct7 == 0x20) {
                     mnemonic = "sra";
                 } else {
-                    mnemonic = ".word";
+                    mnemonic = RAW_WORD_MNEMONIC;
                 }
                 break;
             case 6:
-                mnemonic = funct7 == 0x00 ? "or" : ".word";
+                mnemonic = funct7 == 0x00 ? "or" : RAW_WORD_MNEMONIC;
                 break;
             case 7:
-                mnemonic = funct7 == 0x00 ? "and" : ".word";
+                mnemonic = funct7 == 0x00 ? "and" : RAW_WORD_MNEMONIC;
                 break;
             default:
-                mnemonic = ".word";
+                mnemonic = RAW_WORD_MNEMONIC;
                 break;
         }
-        if (mnemonic.equals(".word")) {
-            return raw(pc, word, sectionName);
+        if (mnemonic.equals(RAW_WORD_MNEMONIC)) {
+            return raw(pc, word, sectionName, null);
         }
-        return ir(pc, word, mnemonic, ops(reg(rd), reg(rs1), reg(rs2)), "R", ControlFlowType.NORMAL, null, sectionName);
+        return ir(pc, word, mnemonic, ops(reg(rd), reg(rs1), reg(rs2)), "R", ControlFlowType.NORMAL, null, sectionName,
+                semantic);
     }
 
     /**
@@ -416,10 +479,12 @@ public final class Rv32iDecoder implements InstructionDecoder {
     private InstructionIr decodeSystem(long pc, int word, int rd, int rs1, int funct3, String sectionName) {
         if (funct3 == 0) {
             if ((word >>> 20) == 0) {
-                return ir(pc, word, "ecall", noOps(), "I", ControlFlowType.TERMINATOR, null, sectionName);
+                // ecall has no rd, so semantic = null
+                return ir(pc, word, "ecall", noOps(), "I", ControlFlowType.TERMINATOR, null, sectionName, null);
             }
             if ((word >>> 20) == 1) {
-                return ir(pc, word, "ebreak", noOps(), "I", ControlFlowType.TERMINATOR, null, sectionName);
+                // ebreak has no rd, so semantic = null
+                return ir(pc, word, "ebreak", noOps(), "I", ControlFlowType.TERMINATOR, null, sectionName, null);
             }
         }
 
@@ -444,15 +509,19 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 mnemonic = "csrrci";
                 break;
             default:
-                mnemonic = ".word";
+                mnemonic = RAW_WORD_MNEMONIC;
                 break;
         }
-        if (mnemonic.equals(".word")) {
-            return raw(pc, word, sectionName);
+        if (mnemonic.equals(RAW_WORD_MNEMONIC)) {
+            return raw(pc, word, sectionName, null);
         }
         int csr = (word >>> 20) & 0xFFF;
+        // CSR instructions have rd, use UnknownExpr for semantic
+        AssignExpr semantic = new AssignExpr(
+                new RegisterExpr(reg(rd)),
+                new UnknownExpr());
         return ir(pc, word, mnemonic, ops(reg(rd), String.format("0x%03x", csr), reg(rs1)), "I", ControlFlowType.NORMAL,
-                null, sectionName);
+                null, sectionName, semantic);
     }
 
     /**
@@ -466,13 +535,14 @@ public final class Rv32iDecoder implements InstructionDecoder {
      * @param controlFlowType semantic control-flow category
      * @param branchTarget    direct target address when known
      * @param sectionName     owning section name
+     * @param semantic        semantic AST representation
      * @return instruction IR instance
      */
     private static InstructionIr ir(long address, int rawInstruction, String mnemonic, List<String> operands,
             String format,
-            ControlFlowType controlFlowType, Long branchTarget, String sectionName) {
+            ControlFlowType controlFlowType, Long branchTarget, String sectionName, AssignExpr semantic) {
         return new InstructionIr(address, rawInstruction, mnemonic, operands, format, controlFlowType, branchTarget,
-                sectionName);
+                sectionName, semantic);
     }
 
     /**
@@ -481,11 +551,13 @@ public final class Rv32iDecoder implements InstructionDecoder {
      * @param address        instruction address
      * @param rawInstruction raw 32-bit word
      * @param sectionName    owning section name
+     * @param semantic       semantic AST representation (null for instructions
+     *                       without rd)
      * @return pseudo-instruction that preserves the raw word as data
      */
-    private static InstructionIr raw(long address, int rawInstruction, String sectionName) {
-        return ir(address, rawInstruction, ".word", ops(hex(Integer.toUnsignedLong(rawInstruction))), "RAW",
-                ControlFlowType.NORMAL, null, sectionName);
+    private static InstructionIr raw(long address, int rawInstruction, String sectionName, AssignExpr semantic) {
+        return ir(address, rawInstruction, RAW_WORD_MNEMONIC, ops(hex(Integer.toUnsignedLong(rawInstruction))), "RAW",
+                ControlFlowType.NORMAL, null, sectionName, semantic);
     }
 
     /**

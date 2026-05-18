@@ -1,0 +1,1 @@
+đây là mẫu để kiểm tra xem chương trình có dừng việc chạy backward khi vượt ngưỡng 50 instruction hay không, do đó kỳ vọng là chương trình dịch sẽ không dịch được

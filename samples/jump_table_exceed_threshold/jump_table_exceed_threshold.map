@@ -1,0 +1,43 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD /tmp/cc2G1gRE.o
+                0x80000000                        . = 0x80000000
+
+.text           0x80000000      0x120
+ *(.init)
+ *(.text.entry)
+ *(.text .text.*)
+ .text          0x80000000      0x120 /tmp/cc2G1gRE.o
+                0x80000000                _start
+
+.rodata         0x80000120        0xc
+ *(.rodata .rodata.*)
+ .rodata        0x80000120        0xc /tmp/cc2G1gRE.o
+
+.data           0x8000012c        0x0
+ *(.data .data.*)
+ .data          0x8000012c        0x0 /tmp/cc2G1gRE.o
+
+.bss            0x8000012c        0x0
+ *(.bss .bss.*)
+ .bss           0x8000012c        0x0 /tmp/cc2G1gRE.o
+ *(COMMON)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(jump_table_exceed_threshold.elf elf32-littleriscv)
+
+.riscv.attributes
+                0x00000000       0x1a
+ .riscv.attributes
+                0x00000000       0x1a /tmp/cc2G1gRE.o

@@ -4,6 +4,9 @@ import org.hello.riscvdisassembler.core.binary.model.BinarySection;
 import org.hello.riscvdisassembler.core.binary.model.BinarySymbol;
 import org.hello.riscvdisassembler.core.decode.InstructionDecoder;
 import org.hello.riscvdisassembler.core.decode.model.InstructionIr;
+import org.hello.riscvdisassembler.core.decode.model.ast.Expression;
+import org.hello.riscvdisassembler.core.discover.indirect.IndirectBranchResolver;
+import org.hello.riscvdisassembler.core.discover.indirect.domain.State;
 import org.hello.riscvdisassembler.core.resolve.ResolvedProgram;
 
 import java.util.ArrayDeque;
@@ -20,11 +23,13 @@ import java.util.Set;
 import static org.hello.riscvdisassembler.core.decode.model.InstructionIr.ControlFlowType;
 
 /**
- * Discovers which instruction addresses should be decoded before emitters render output.
+ * Discovers which instruction addresses should be decoded before emitters
+ * render output.
  */
 public final class CodeDiscoveryEngine {
     private final InstructionDecoder decoder;
     private final RegionClassifier regionClassifier = new RegionClassifier();
+    private final IndirectBranchResolver indirectBranchResolver;
 
     /**
      * Creates a discovery engine backed by a concrete instruction decoder.
@@ -32,14 +37,20 @@ public final class CodeDiscoveryEngine {
      * @param decoder instruction decoder used for address-level decoding
      */
     public CodeDiscoveryEngine(InstructionDecoder decoder) {
+        this(decoder, new IndirectBranchResolver());
+    }
+
+    // Visible for testing
+    CodeDiscoveryEngine(InstructionDecoder decoder, IndirectBranchResolver indirectBranchResolver) {
         this.decoder = decoder;
+        this.indirectBranchResolver = indirectBranchResolver;
     }
 
     /**
      * Discovers instructions according to the requested traversal mode.
      *
      * @param program resolved program metadata
-     * @param mode traversal strategy
+     * @param mode    traversal strategy
      * @return discovered reachable instructions and edges
      */
     public DiscoveredProgram discover(ResolvedProgram program, DiscoveryMode mode) {
@@ -112,8 +123,45 @@ public final class CodeDiscoveryEngine {
                     edges.add(new ControlFlowEdge(instruction.address(), target));
                 }
 
+                // Handle indirect branches (jalr) using Static Jump Table Analysis
+                if (instruction.mnemonic().equals("jalr") && instruction.semantic() != null) {
+                    DiscoveredProgram snapshot = new DiscoveredProgram(
+                            program,
+                            new ArrayList<>(instructionsByAddress.values()),
+                            new ArrayList<>(edges),
+                            List.of(),
+                            DiscoveryMode.RECURSIVE);
+                    State state = indirectBranchResolver.buildState(instruction, snapshot);
+                    Expression rawTarget = instruction.semantic().rhs();
+                    Expression jalrAst = State.substitute(rawTarget, state);
+                    System.out.println("DEBUG SJA: jalr at " + Long.toHexString(instruction.address()) + " has AST: " + jalrAst);
+                    var structureOpt = indirectBranchResolver.extractStructure(jalrAst);
+                    System.out.println("DEBUG SJA: structureOpt.isPresent=" + structureOpt.isPresent());
+                    if (structureOpt.isPresent()) {
+                        var structure = structureOpt.get();
+                        Long bound = indirectBranchResolver.findUpperBound(structure.index(), instruction, snapshot);
+                        System.out.println("DEBUG SJA: findUpperBound bound=" + bound);
+                        if (bound != null) {
+                            List<Long> targets = indirectBranchResolver.resolveTargets(
+                                    structure, bound, program.binaryImage());
+                            for (Long resolvedTarget : targets) {
+                                edges.add(new ControlFlowEdge(instruction.address(), resolvedTarget));
+                                BinarySection targetSection = program.findSectionContaining(resolvedTarget);
+                                if (targetSection != null) {
+                                    enqueue(worklist, queuedAddresses,
+                                            new Seed(targetSection.name(), resolvedTarget));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (instruction.controlFlowType() == ControlFlowType.CONDITIONAL_BRANCH) {
-                    enqueue(worklist, queuedAddresses, new Seed(section.name(), instruction.address() + 4));
+                    long fallthrough = instruction.address() + 4;
+                    if (program.containsExecutableAddress(section.name(), fallthrough)) {
+                        edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
+                        enqueue(worklist, queuedAddresses, new Seed(section.name(), fallthrough));
+                    }
                     if (target != null && program.containsExecutableAddress(section.name(), target)) {
                         enqueue(worklist, queuedAddresses, new Seed(section.name(), target));
                     }
@@ -190,7 +238,8 @@ public final class CodeDiscoveryEngine {
         return new ArrayList<>(seeds.values());
     }
 
-    private static boolean isTrustedCodeSeed(BinarySection section, BinarySymbol symbol, long address, long entryPoint) {
+    private static boolean isTrustedCodeSeed(BinarySection section, BinarySymbol symbol, long address,
+            long entryPoint) {
         if (address == entryPoint || address == section.address()) {
             return true;
         }
@@ -224,4 +273,3 @@ public final class CodeDiscoveryEngine {
     private record Seed(String sectionName, long address) {
     }
 }
-
