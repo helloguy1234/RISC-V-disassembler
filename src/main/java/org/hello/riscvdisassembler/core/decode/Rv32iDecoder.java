@@ -439,13 +439,11 @@ public final class Rv32iDecoder implements InstructionDecoder {
                 mnemonic = funct7 == 0x00 ? "xor" : RAW_WORD_MNEMONIC;
                 break;
             case 5:
-                if (funct7 == 0x00) {
-                    mnemonic = "srl";
-                } else if (funct7 == 0x20) {
-                    mnemonic = "sra";
-                } else {
-                    mnemonic = RAW_WORD_MNEMONIC;
-                }
+                mnemonic = switch (funct7) {
+                    case 0x00 -> "srl";
+                    case 0x20 -> "sra";
+                    default -> RAW_WORD_MNEMONIC;
+                };
                 break;
             case 6:
                 mnemonic = funct7 == 0x00 ? "or" : RAW_WORD_MNEMONIC;

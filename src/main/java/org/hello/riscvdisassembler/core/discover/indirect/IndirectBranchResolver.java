@@ -52,34 +52,46 @@ public final class IndirectBranchResolver {
         if (expr == null)
             return null;
         return switch (expr) {
-            case BinaryOpExpr(var op, var left, var right) -> {
+            case BinaryOpExpr(Operator op, Expression left, Expression right) -> {
                 Expression simLeft = simplify(left);
                 Expression simRight = simplify(right);
                 if (op == Operator.ADD) {
-                    if (simRight instanceof ImmediateExpr imm && imm.value() == 0)
-                        yield simLeft;
-                    if (simLeft instanceof ImmediateExpr imm && imm.value() == 0)
-                        yield simRight;
-                    if (simLeft instanceof ImmediateExpr immL && simRight instanceof ImmediateExpr immR) {
-                        yield new ImmediateExpr(immL.value() + immR.value());
-                    }
-                    // Handle ADD(ADD(Imm1, X), Imm2) -> ADD(Imm1+Imm2, X)
-                    if (simLeft instanceof BinaryOpExpr binLeft && binLeft.op() == Operator.ADD) {
-                        if (binLeft.left() instanceof ImmediateExpr imm1 && simRight instanceof ImmediateExpr imm2) {
-                            yield new BinaryOpExpr(Operator.ADD, new ImmediateExpr(imm1.value() + imm2.value()),
-                                    binLeft.right());
-                        }
-                        if (binLeft.right() instanceof ImmediateExpr imm1 && simRight instanceof ImmediateExpr imm2) {
-                            yield new BinaryOpExpr(Operator.ADD, new ImmediateExpr(imm1.value() + imm2.value()),
-                                    binLeft.left());
-                        }
+                    Expression simplified = simplifyAdd(simLeft, simRight);
+                    if (simplified != null) {
+                        yield simplified;
                     }
                 }
                 yield new BinaryOpExpr(op, simLeft, simRight);
             }
-            case MemoryLoadExpr(var base, var size) -> new MemoryLoadExpr(simplify(base), size);
+            case MemoryLoadExpr(Expression base, int size) -> new MemoryLoadExpr(simplify(base), size);
             default -> expr;
         };
+    }
+
+    private Expression simplifyAdd(Expression left, Expression right) {
+        if (right instanceof ImmediateExpr imm && imm.value() == 0)
+            return left;
+        if (left instanceof ImmediateExpr imm && imm.value() == 0)
+            return right;
+        if (left instanceof ImmediateExpr immL && right instanceof ImmediateExpr immR) {
+            return new ImmediateExpr(immL.value() + immR.value());
+        }
+        if (left instanceof BinaryOpExpr binLeft && binLeft.op() == Operator.ADD) {
+            return simplifyNestedAdd(binLeft, right);
+        }
+        return null;
+    }
+
+    private Expression simplifyNestedAdd(BinaryOpExpr leftAdd, Expression right) {
+        if (leftAdd.left() instanceof ImmediateExpr imm1 && right instanceof ImmediateExpr imm2) {
+            return new BinaryOpExpr(Operator.ADD, new ImmediateExpr(imm1.value() + imm2.value()),
+                    leftAdd.right());
+        }
+        if (leftAdd.right() instanceof ImmediateExpr imm1 && right instanceof ImmediateExpr imm2) {
+            return new BinaryOpExpr(Operator.ADD, new ImmediateExpr(imm1.value() + imm2.value()),
+                    leftAdd.left());
+        }
+        return null;
     }
 
     /**
@@ -93,8 +105,7 @@ public final class IndirectBranchResolver {
         }
 
         // Try right as Base, left as Offset (commutativity)
-        var rightResult = tryExtractOffset(addExpr.right(), addExpr.left());
-        return rightResult;
+        return tryExtractOffset(addExpr.right(), addExpr.left());
     }
 
     /**
@@ -103,7 +114,7 @@ public final class IndirectBranchResolver {
      */
     private Optional<JumpTableStructure> tryExtractOffset(Expression base, Expression offset) {
         return switch (offset) {
-            case BinaryOpExpr(var op, var left, var right) -> {
+            case BinaryOpExpr(Operator op, Expression left, Expression right) -> {
                 if (op == Operator.SHIFT_LEFT) {
                     // Pattern: SHIFT_LEFT(Index, ShiftAmount) -> Scale = 1 << ShiftAmount
                     if (left instanceof RegisterExpr index && right instanceof ImmediateExpr shiftAmount) {
@@ -164,7 +175,7 @@ public final class IndirectBranchResolver {
                 }
                 yield Optional.empty();
             }
-            case BinaryOpExpr(var op, var left, var right) -> {
+            case BinaryOpExpr(Operator op, Expression left, Expression right) -> {
                 Optional<Long> leftVal = evaluateConstant(left);
                 Optional<Long> rightVal = evaluateConstant(right);
                 if (leftVal.isEmpty() || rightVal.isEmpty()) {
@@ -210,17 +221,17 @@ public final class IndirectBranchResolver {
                     .filter(Objects::nonNull)
                     .findFirst();
 
-            if (predOpt.isPresent()) {
-                InstructionIr pred = predOpt.get();
-                path.add(pred);
-                currentAddr = pred.address();
+            if (predOpt.isEmpty()) {
+                break;
+            }
 
-                // Stop traversal at conditional branch (likely the bounds check)
-                // This prevents substituting the index register with a constant loaded earlier.
-                if (pred.controlFlowType() == org.hello.riscvdisassembler.core.decode.model.InstructionIr.ControlFlowType.CONDITIONAL_BRANCH) {
-                    break;
-                }
-            } else {
+            InstructionIr pred = predOpt.get();
+            path.add(pred);
+            currentAddr = pred.address();
+
+            // Stop traversal at conditional branch (likely the bounds check)
+            // This prevents substituting the index register with a constant loaded earlier.
+            if (pred.controlFlowType() == org.hello.riscvdisassembler.core.decode.model.InstructionIr.ControlFlowType.CONDITIONAL_BRANCH) {
                 break;
             }
         }
@@ -249,7 +260,14 @@ public final class IndirectBranchResolver {
      * @return the upper bound if found, null if threshold exceeded or not found
      */
     public Long findUpperBound(RegisterExpr indexReg, InstructionIr jalrInstruction, DiscoveredProgram cfg) {
-        // Build predecessor map: target address -> list of source instructions
+        Map<Long, List<InstructionIr>> predecessorMap = buildPredecessorMap(cfg);
+
+        TraversalState state = initializeTraversalState(indexReg);
+
+        return performBackwardTraversal(jalrInstruction, predecessorMap, state, cfg);
+    }
+
+    private Map<Long, List<InstructionIr>> buildPredecessorMap(DiscoveredProgram cfg) {
         Map<Long, List<InstructionIr>> predecessorMap = new HashMap<>();
         for (var edge : cfg.edges()) {
             predecessorMap.computeIfAbsent(edge.to(), k -> new ArrayList<>()).add(
@@ -258,71 +276,104 @@ public final class IndirectBranchResolver {
                             .findFirst()
                             .orElse(null));
         }
+        return predecessorMap;
+    }
 
-        // Initialize equivalence class with the index register
+    private TraversalState initializeTraversalState(RegisterExpr indexReg) {
         Map<String, Expression> equivalenceClass = new HashMap<>();
         equivalenceClass.put(indexReg.name(), indexReg);
 
-        // Track known constant values assigned to registers during backward traversal
-        Map<String, Long> knownConstants = new HashMap<>();
-
-        // BFS backward traversal
         Set<Long> visited = new HashSet<>();
         Deque<Long> worklist = new ArrayDeque<>();
-        worklist.add(jalrInstruction.address());
-        visited.add(jalrInstruction.address());
+        Map<String, Long> knownConstants = new HashMap<>();
+
+        return new TraversalState(equivalenceClass, visited, worklist, knownConstants);
+    }
+
+    private Long performBackwardTraversal(InstructionIr jalrInstruction,
+            Map<Long, List<InstructionIr>> predecessorMap,
+            TraversalState state,
+            DiscoveredProgram cfg) {
+        state.worklist.add(jalrInstruction.address());
+        state.visited.add(jalrInstruction.address());
 
         int instructionCount = 0;
         final int MAX_INSTRUCTIONS = 50;
 
-        while (!worklist.isEmpty() && instructionCount < MAX_INSTRUCTIONS) {
-            long currentAddr = worklist.removeFirst();
+        while (!state.worklist.isEmpty() && instructionCount < MAX_INSTRUCTIONS) {
+            long currentAddr = state.worklist.removeFirst();
             List<InstructionIr> predecessors = predecessorMap.get(currentAddr);
 
             if (predecessors == null || predecessors.isEmpty()) {
                 continue;
             }
 
-            for (InstructionIr pred : predecessors) {
-                if (pred == null) {
-                    continue;
-                }
-
-                if (visited.contains(pred.address())) {
-                    continue;
-                }
-                visited.add(pred.address());
-
-                instructionCount++;
-                if (instructionCount > MAX_INSTRUCTIONS) {
-                    return null; // Threshold exceeded
-                }
-
-                // Track constant assignments (e.g., li t0, 4 or addi t0, zero, 4)
-                if (pred.semantic() != null &&
-                        pred.semantic().lhs() instanceof RegisterExpr lhs) {
-                    // Try to evaluate the RHS as a constant expression
-                    Optional<Long> constVal = evaluateConstant(pred.semantic().rhs());
-                    if (constVal.isPresent()) {
-                        knownConstants.put(lhs.name(), constVal.get());
-                    }
-                }
-
-                // Update equivalence class on register moves
-                updateEquivalenceClass(pred, equivalenceClass);
-
-                // Check for conditional branch with bounds check
-                boolean isFallthrough = currentAddr == pred.address() + 4;
-                Long bound = checkBoundsCheck(pred, equivalenceClass, knownConstants, isFallthrough, cfg);
-                if (bound != null) {
-                    return bound;
-                }
-
-                worklist.add(pred.address());
+            Long bound = processPredecessors(predecessors, currentAddr, state, cfg, instructionCount, MAX_INSTRUCTIONS);
+            if (bound != null) {
+                return bound;
             }
+
+            instructionCount += predecessors.size();
         }
 
-        return null; // No bounds found within threshold
+        return null;
+    }
+
+    private Long processPredecessors(List<InstructionIr> predecessors,
+            long currentAddr,
+            TraversalState state,
+            DiscoveredProgram cfg,
+            int instructionCount,
+            int maxInstructions) {
+        for (InstructionIr pred : predecessors) {
+            if (pred == null || state.visited.contains(pred.address())) {
+                continue;
+            }
+
+            
+            state.visited.add(pred.address());
+
+            instructionCount++;
+            if (instructionCount > maxInstructions) {
+                return null;
+            }
+
+            trackConstantAssignment(pred, state.knownConstants);
+            updateEquivalenceClass(pred, state.equivalenceClass);
+
+            boolean isFallthrough = currentAddr == pred.address() + 4;
+            Long bound = checkBoundsCheck(pred, state.equivalenceClass, state.knownConstants, isFallthrough, cfg);
+            if (bound != null) {
+                return bound;
+            }
+
+            state.worklist.add(pred.address());
+        }
+        return null;
+    }
+
+    private void trackConstantAssignment(InstructionIr pred, Map<String, Long> knownConstants) {
+        if (pred.semantic() != null && pred.semantic().lhs() instanceof RegisterExpr lhs) {
+            Optional<Long> constVal = evaluateConstant(pred.semantic().rhs());
+            if (constVal.isPresent()) {
+                knownConstants.put(lhs.name(), constVal.get());
+            }
+        }
+    }
+
+    private static class TraversalState {
+        final Map<String, Expression> equivalenceClass;
+        final Set<Long> visited;
+        final Deque<Long> worklist;
+        final Map<String, Long> knownConstants;
+
+        TraversalState(Map<String, Expression> equivalenceClass, Set<Long> visited,
+                Deque<Long> worklist, Map<String, Long> knownConstants) {
+            this.equivalenceClass = equivalenceClass;
+            this.visited = visited;
+            this.worklist = worklist;
+            this.knownConstants = knownConstants;
+        }
     }
 
     /**
@@ -385,7 +436,7 @@ public final class IndirectBranchResolver {
         }
 
         return switch (rhs) {
-            case BinaryOpExpr(var origOp, var left, var right) -> {
+            case BinaryOpExpr(Operator origOp, Expression left, Expression right) -> {
                 Long bound = null;
                 // Index OP Constant
                 if (left instanceof RegisterExpr reg && equivalenceClass.containsKey(reg.name())) {
@@ -520,7 +571,7 @@ public final class IndirectBranchResolver {
                 long offset = address - section.address() + section.offset();
                 if (offset + 4 <= bytes.length) {
                     // Little-endian read
-                    return ((bytes[(int) offset] & 0xFFL))
+                    return (bytes[(int) offset] & 0xFFL)
                             | ((bytes[(int) offset + 1] & 0xFFL) << 8)
                             | ((bytes[(int) offset + 2] & 0xFFL) << 16)
                             | ((bytes[(int) offset + 3] & 0xFFL) << 24);

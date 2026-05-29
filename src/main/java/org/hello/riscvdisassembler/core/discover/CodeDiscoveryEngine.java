@@ -20,8 +20,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 
-import static org.hello.riscvdisassembler.core.decode.model.InstructionIr.ControlFlowType;
-
 /**
  * Discovers which instruction addresses should be decoded before emitters
  * render output.
@@ -112,93 +110,8 @@ public final class CodeDiscoveryEngine {
                 continue;
             }
 
-            long currentAddress = seed.address();
-            while (program.containsExecutableAddress(section.name(), currentAddress)
-                    && !instructionsByAddress.containsKey(currentAddress)) {
-                InstructionIr instruction = decoder.decodeAt(program, section, currentAddress);
-                instructionsByAddress.put(currentAddress, instruction);
-
-                Long target = instruction.branchTarget();
-                if (target != null && program.containsExecutableAddress(section.name(), target)) {
-                    edges.add(new ControlFlowEdge(instruction.address(), target));
-                }
-
-                // Handle indirect branches (jalr) using Static Jump Table Analysis
-                if (instruction.mnemonic().equals("jalr") && instruction.semantic() != null) {
-                    DiscoveredProgram snapshot = new DiscoveredProgram(
-                            program,
-                            new ArrayList<>(instructionsByAddress.values()),
-                            new ArrayList<>(edges),
-                            List.of(),
-                            DiscoveryMode.RECURSIVE);
-                    State state = indirectBranchResolver.buildState(instruction, snapshot);
-                    Expression rawTarget = instruction.semantic().rhs();
-                    Expression jalrAst = State.substitute(rawTarget, state);
-                    System.out.println("DEBUG SJA: jalr at " + Long.toHexString(instruction.address()) + " has AST: " + jalrAst);
-                    var structureOpt = indirectBranchResolver.extractStructure(jalrAst);
-                    System.out.println("DEBUG SJA: structureOpt.isPresent=" + structureOpt.isPresent());
-                    if (structureOpt.isPresent()) {
-                        var structure = structureOpt.get();
-                        Long bound = indirectBranchResolver.findUpperBound(structure.index(), instruction, snapshot);
-                        System.out.println("DEBUG SJA: findUpperBound bound=" + bound);
-                        if (bound != null) {
-                            List<Long> targets = indirectBranchResolver.resolveTargets(
-                                    structure, bound, program.binaryImage());
-                            for (Long resolvedTarget : targets) {
-                                edges.add(new ControlFlowEdge(instruction.address(), resolvedTarget));
-                                BinarySection targetSection = program.findSectionContaining(resolvedTarget);
-                                if (targetSection != null) {
-                                    enqueue(worklist, queuedAddresses,
-                                            new Seed(targetSection.name(), resolvedTarget));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (instruction.controlFlowType() == ControlFlowType.CONDITIONAL_BRANCH) {
-                    long fallthrough = instruction.address() + 4;
-                    if (program.containsExecutableAddress(section.name(), fallthrough)) {
-                        edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
-                        enqueue(worklist, queuedAddresses, new Seed(section.name(), fallthrough));
-                    }
-                    if (target != null && program.containsExecutableAddress(section.name(), target)) {
-                        enqueue(worklist, queuedAddresses, new Seed(section.name(), target));
-                    }
-                    break;
-                }
-                if (instruction.controlFlowType() == ControlFlowType.UNCONDITIONAL_JUMP) {
-                    if (target != null && program.containsExecutableAddress(section.name(), target)) {
-                        enqueue(worklist, queuedAddresses, new Seed(section.name(), target));
-                    }
-                    break;
-                }
-                if (instruction.controlFlowType() == ControlFlowType.CALL) {
-                    if (target != null && program.findSectionContaining(target) != null) {
-                        BinarySection targetSection = program.findSectionContaining(target);
-                        enqueue(worklist, queuedAddresses, new Seed(targetSection.name(), target));
-                    }
-                    long fallthrough = instruction.address() + 4;
-                    if (program.containsExecutableAddress(section.name(), fallthrough)) {
-                        edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
-                        currentAddress = fallthrough;
-                        continue;
-                    }
-                    break;
-                }
-                if (instruction.controlFlowType() == ControlFlowType.RETURN
-                        || instruction.controlFlowType() == ControlFlowType.TERMINATOR) {
-                    break;
-                }
-
-                long fallthrough = instruction.address() + 4;
-                if (program.containsExecutableAddress(section.name(), fallthrough)) {
-                    edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
-                    currentAddress = fallthrough;
-                    continue;
-                }
-                break;
-            }
+            processInstructionSequence(seed, section, program, instructionsByAddress, edges,
+                    worklist, queuedAddresses);
         }
 
         List<InstructionIr> instructions = new ArrayList<>(instructionsByAddress.values());
@@ -207,6 +120,129 @@ public final class CodeDiscoveryEngine {
         return new DiscoveredProgram(program, instructions, new ArrayList<>(edges),
                 regionClassifier.classify(program, instructions, DiscoveryMode.RECURSIVE),
                 DiscoveryMode.RECURSIVE);
+    }
+
+    private void processInstructionSequence(Seed seed, BinarySection section, ResolvedProgram program,
+            Map<Long, InstructionIr> instructionsByAddress, Set<ControlFlowEdge> edges,
+            Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        long currentAddress = seed.address();
+        boolean shouldContinue = true;
+        while (shouldContinue && program.containsExecutableAddress(section.name(), currentAddress)
+                && !instructionsByAddress.containsKey(currentAddress)) {
+            InstructionIr instruction = decoder.decodeAt(program, section, currentAddress);
+            instructionsByAddress.put(currentAddress, instruction);
+
+            Long target = instruction.branchTarget();
+            if (target != null && program.containsExecutableAddress(section.name(), target)) {
+                edges.add(new ControlFlowEdge(instruction.address(), target));
+            }
+
+            if (instruction.mnemonic().equals("jalr") && instruction.semantic() != null) {
+                handleIndirectBranch(instruction, program, instructionsByAddress, edges,
+                        worklist, queuedAddresses);
+            }
+
+            shouldContinue = processControlFlow(instruction, target, section, program,
+                    edges, worklist, queuedAddresses);
+            if (shouldContinue) {
+                currentAddress = instruction.address() + 4;
+            }
+        }
+    }
+
+    private void handleIndirectBranch(InstructionIr instruction, ResolvedProgram program,
+            Map<Long, InstructionIr> instructionsByAddress, Set<ControlFlowEdge> edges,
+            Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        DiscoveredProgram snapshot = new DiscoveredProgram(
+                program,
+                new ArrayList<>(instructionsByAddress.values()),
+                new ArrayList<>(edges),
+                List.of(),
+                DiscoveryMode.RECURSIVE);
+        State state = indirectBranchResolver.buildState(instruction, snapshot);
+        Expression rawTarget = instruction.semantic().rhs();
+        Expression jalrAst = State.substitute(rawTarget, state);
+        System.out.println(
+                "DEBUG SJA: jalr at " + Long.toHexString(instruction.address()) + " has AST: " + jalrAst);
+        var structureOpt = indirectBranchResolver.extractStructure(jalrAst);
+        System.out.println("DEBUG SJA: structureOpt.isPresent=" + structureOpt.isPresent());
+        if (structureOpt.isPresent()) {
+            var structure = structureOpt.get();
+            Long bound = indirectBranchResolver.findUpperBound(structure.index(), instruction, snapshot);
+            System.out.println("DEBUG SJA: findUpperBound bound=" + bound);
+            if (bound != null) {
+                List<Long> targets = indirectBranchResolver.resolveTargets(
+                        structure, bound, program.binaryImage());
+                for (Long resolvedTarget : targets) {
+                    edges.add(new ControlFlowEdge(instruction.address(), resolvedTarget));
+                    BinarySection targetSection = program.findSectionContaining(resolvedTarget);
+                    if (targetSection != null) {
+                        enqueue(worklist, queuedAddresses,
+                                new Seed(targetSection.name(), resolvedTarget));
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean processControlFlow(InstructionIr instruction, Long target,
+            BinarySection section, ResolvedProgram program,
+            Set<ControlFlowEdge> edges, Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        return switch (instruction.controlFlowType()) {
+            case CONDITIONAL_BRANCH ->
+                processConditionalBranch(instruction, target, section, program, edges, worklist, queuedAddresses);
+            case UNCONDITIONAL_JUMP -> processUnconditionalJump(target, section, program, worklist, queuedAddresses);
+            case CALL -> processCall(instruction, target, section, program, edges, worklist, queuedAddresses);
+            case RETURN, TERMINATOR -> false;
+            default -> processFallthrough(instruction, section, program, edges);
+        };
+    }
+
+    private boolean processConditionalBranch(InstructionIr instruction, Long target,
+            BinarySection section, ResolvedProgram program,
+            Set<ControlFlowEdge> edges, Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        long fallthrough = instruction.address() + 4;
+        if (program.containsExecutableAddress(section.name(), fallthrough)) {
+            edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
+            enqueue(worklist, queuedAddresses, new Seed(section.name(), fallthrough));
+        }
+        if (target != null && program.containsExecutableAddress(section.name(), target)) {
+            enqueue(worklist, queuedAddresses, new Seed(section.name(), target));
+        }
+        return false;
+    }
+
+    private boolean processUnconditionalJump(Long target, BinarySection section,
+            ResolvedProgram program, Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        if (target != null && program.containsExecutableAddress(section.name(), target)) {
+            enqueue(worklist, queuedAddresses, new Seed(section.name(), target));
+        }
+        return false;
+    }
+
+    private boolean processCall(InstructionIr instruction, Long target,
+            BinarySection section, ResolvedProgram program,
+            Set<ControlFlowEdge> edges, Deque<Seed> worklist, Set<Long> queuedAddresses) {
+        if (target != null && program.findSectionContaining(target) != null) {
+            BinarySection targetSection = program.findSectionContaining(target);
+            enqueue(worklist, queuedAddresses, new Seed(targetSection.name(), target));
+        }
+        long fallthrough = instruction.address() + 4;
+        if (program.containsExecutableAddress(section.name(), fallthrough)) {
+            edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
+            return true;
+        }
+        return false;
+    }
+
+    private boolean processFallthrough(InstructionIr instruction, BinarySection section,
+            ResolvedProgram program, Set<ControlFlowEdge> edges) {
+        long fallthrough = instruction.address() + 4;
+        if (program.containsExecutableAddress(section.name(), fallthrough)) {
+            edges.add(new ControlFlowEdge(instruction.address(), fallthrough));
+            return true;
+        }
+        return false;
     }
 
     private List<Seed> collectSeeds(ResolvedProgram program) {
